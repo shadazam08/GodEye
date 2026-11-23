@@ -1,0 +1,8 @@
+.venv/
+.env
+.env.*
+__pycache__/
+**/__pycache__/
+tests/
+check_db.py
+check_geoapify.py

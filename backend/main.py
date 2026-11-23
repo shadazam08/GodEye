@@ -7,10 +7,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from database import get_db
 from models import Report, ReviewEvent
-from schemas import ReportCreate, ReportRead, ReportReview, ReviewEventRead
+from schemas import ReportCreate, ReportRead, ReportReview, ReviewEventRead, MapMatchRequest, ProviderMatchResponse
 from typing import Literal
 from security import require_reviewer
 from uuid import UUID
+
+from services.map_matching import (
+    MapMatchingError,
+    match_location_samples,
+)
 
 
 app = FastAPI(
@@ -68,6 +73,7 @@ def create_report(
             detail="Could not save the report. Please try again later.",
         ) from None
 
+
 @app.get(
     "/api/hazards",
     response_model=list[ReportRead],
@@ -101,6 +107,7 @@ def list_verified_hazards(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load road hazards. Please try again later.",
         ) from None
+
 
 @app.get(
     "/api/admin/reports",
@@ -139,6 +146,7 @@ def list_reports_for_review(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load reports. Please try again later.",
         ) from None
+
 
 @app.patch(
     "/api/admin/reports/{report_id}/review",
@@ -210,6 +218,7 @@ def review_report(
             detail="Could not save the review. Please try again later.",
         ) from None
 
+
 @app.get(
     "/api/admin/reports/{report_id}/history",
     response_model=list[ReviewEventRead],
@@ -254,4 +263,33 @@ def get_report_history(
             detail="Could not load review history. Please try again later.",
         ) from None
 
+@app.post(
+    "/api/admin/map-matching",
+    response_model=ProviderMatchResponse,
+    dependencies=[Depends(require_reviewer)],
+)
+def match_trace(payload: MapMatchRequest):
+    try:
+        return match_location_samples(payload)
 
+    except MapMatchingError as error:
+        error_statuses = {
+            "not_configured": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "provider_access_error": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "quota_or_rate_limit": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "network_error": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "timeout": status.HTTP_504_GATEWAY_TIMEOUT,
+            "provider_error": status.HTTP_502_BAD_GATEWAY,
+            "invalid_response": status.HTTP_502_BAD_GATEWAY,
+        }
+
+        raise HTTPException(
+            status_code=error_statuses.get(
+                error.code,
+                status.HTTP_502_BAD_GATEWAY,
+            ),
+            detail={
+                "code": error.code,
+                "message": str(error),
+            },
+        ) from None
