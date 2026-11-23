@@ -29,6 +29,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://god-eye-eight.vercel.app",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH"],
@@ -262,6 +263,7 @@ def get_report_history(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load review history. Please try again later.",
         ) from None
+
 
 @app.post(
     "/api/admin/map-matching",
