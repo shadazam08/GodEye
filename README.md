@@ -1,575 +1,394 @@
 # GodEye
-## Know the road ahead.
 
-**AI-assisted pothole mapping, advance driver warnings, and road repair visibility.**
+**Know the road ahead.**
 
-**Project status:** Proposed prototype. Features below are planned unless explicitly demonstrated in your implementation. Sample records, alert thresholds, timelines, and interface metrics are illustrative. Replace planned-feature statements with verified implementation details before submission.
+A proposed AI-assisted road hazard awareness web application that helps people discover, report, and receive proximity warnings about mapped potholes, while giving authorized reviewers tools to verify reports and track repairs.
 
----
+> **Project scope:** A responsive website and web application built with React and TypeScript, a Python backend, and a geospatial database. No native mobile application is included. This README is an implementation blueprint, not a claim that the described features have already been built or validated. It contains no application code.
 
 ## 1. Project overview
 
-GodEye is a proposed road safety platform that warns drivers about known potholes ahead and helps communities and road maintenance teams keep road hazard information current.
+GodEye addresses a practical urban problem: people often learn about road damage only when they reach it. Poor visibility during rain, fog, or darkness can make this harder. Potholes can contribute to crashes, vehicle damage, discomfort, and sudden evasive manoeuvres. This project does not claim that potholes cause most accidents or promise a particular reduction in crashes without supporting research.
 
-The central experience is simple: a driver starts a journey, GodEye follows the vehicle's approximate location with permission, and the app checks for mapped potholes along the direction of travel. When the vehicle approaches a relevant hazard, the app gives a short voice warning and a clear visual alert.
+GodEye combines a shared pothole map, citizen reporting, a verification workflow, browser-based proximity warnings, and AI-assisted image screening. Its central idea is to warn about previously mapped hazards even when the hazard itself is difficult to see.
 
-For the initial demonstration, the warning target is approximately **50 metres before a mapped pothole**. This is a configurable demonstration threshold, not a promise of exact positioning or sufficient stopping distance at every speed. A later version should calculate earlier warnings using speed, location uncertainty, and tested operating conditions.
+**Project-manager explanation:** GodEye turns individual reports of damaged roads into a maintained map of road hazards. People can inspect the map before travelling and start an active browser session for proximity warnings. Reviewers check reports and update repair status. AI helps screen submitted photos; location and road matching determine when a mapped hazard is relevant to a traveller.
 
-AI supports the collection and review of pothole reports, for example by identifying likely road damage in uploaded photographs. Location-based proximity logic delivers the warning. These are separate functions: a location warning should not be described as AI camera detection.
+## 2. Goals and boundaries
 
-GodEye is intended to be especially useful when road surface visibility is poor, including rain, fog, and darkness, because previously mapped hazards can still generate location-based warnings. It cannot guarantee warnings for new, unmapped, repaired, or inaccurately recorded hazards.
+### Goals
+
+- Make reported and verified potholes easy to locate.
+- Provide advance awareness of relevant, previously mapped hazards.
+- Support photo-based reporting with minimal steps.
+- Help reviewers identify duplicates and maintain reliable records.
+- Track verification and repair progress transparently.
+- Measure usefulness through field feedback and operational metrics.
 
-### One-sentence pitch
+### Boundaries
+
+- GodEye does not guarantee detection of every pothole or prevention of a crash.
+- A normal phone photo cannot reliably establish pothole depth or structural severity.
+- A browser camera is not assumed to see potholes through fog, standing water, or heavy rain.
+- Previously unknown hazards cannot trigger a map-based warning until recorded and distributed.
+- Government partnership is a possible future direction, not an existing affiliation or a requirement for launch. There is no claim of mandatory installation.
+- Native apps, vehicle integration, and automatic vehicle control are outside this website project.
+
+## 3. Users and access
 
-> GodEye helps drivers anticipate mapped potholes through advance voice warnings while turning community reports into actionable road maintenance information.
+| Role | Main capabilities |
+| --- | --- |
+| Public visitor | Read the landing page, browse public hazard records and methodology |
+| Registered citizen | Submit reports, view own reports, submit confirmations and repair evidence |
+| Active travel user | Start and stop location sharing for browser-based warnings |
+| Reviewer | Examine evidence, resolve duplicates, verify or reject reports |
+| Administrator | Manage reviewer access, configuration, audit history and operational metrics |
 
-### Project manager explanation
+Reviewer accounts belong to the project team unless a real organization has authorized its participation. Authorization must be checked by the backend for every protected action.
 
-> We are building a responsive web prototype with a public landing page, a road hazard map, a controlled journey simulation, a reporting flow, and a review dashboard. The prototype will show a vehicle approaching a mapped pothole and receiving an alert around the configured 50-metre threshold. AI image assistance is a separate module that must be demonstrated or clearly marked as planned. A future mobile version could support broader field testing and more reliable driving-session operation.
+## 4. Recommended technology stack
 
-## 2. The problem
+These are design recommendations. Record actual package versions and provider choices when implementation begins.
 
-Potholes can create sudden road hazards, uncomfortable journeys, vehicle damage, and accident risk. Drivers may notice road damage too late, particularly when rainwater obscures the surface or visibility is limited.
+| Layer | Choice | Responsibility |
+| --- | --- | --- |
+| Web interface | React + TypeScript | Responsive pages, forms, map controls and browser alert interface |
+| Frontend tooling | Vite | Development and production frontend builds |
+| Styling | CSS or Tailwind CSS | Consistent responsive components |
+| API backend | Python + FastAPI | Authentication integration, reports, moderation and spatial queries |
+| Database | PostgreSQL + PostGIS | Persistent records, road geometry, indexed location searches |
+| Map interface | Leaflet with React integration | Render maps, markers, clusters and location overlays |
+| Map tiles and road data | A selected, licensed provider | Basemap, road geometry and attribution; Leaflet itself does not supply these |
+| Evidence storage | Private object storage | Store images securely and serve controlled derivatives |
+| AI screening | Python image-processing worker | Evaluate submitted images asynchronously |
+| Identity | An established authentication solution | Sign-in, account recovery and access control |
+| Hosting | HTTPS frontend, Python service, worker and managed database | Public access, deployment, monitoring and backups |
 
-There is also an information gap. One person may know about a dangerous pothole, while the next driver receives no warning. A maintenance team may receive incomplete or duplicate reports without a clear view of location, freshness, and repair status.
+An editor such as VS Code can be used for both the React and Python projects. React builds the user interface; Python handles backend processing and AI. They are complementary parts of this system.
 
-GodEye connects three needs:
+## 5. System architecture
 
-1. **Awareness:** Give drivers advance notice of mapped hazards on their route.
-2. **Reliable reporting:** Collect useful evidence and keep hazard records current.
-3. **Repair visibility:** Help reviewers track hazards from report to verified resolution.
+The browser requests reports and map data from the API. The API reads and writes PostgreSQL/PostGIS and controls access to image storage. An asynchronous worker processes submitted images and returns screening results for review. The browser receives nearby verified hazards and evaluates proximity locally during an active session.
 
-Do not claim that potholes cause most road accidents, or that GodEye will prevent most accidents, without appropriate evidence. The defensible initial claim is that the project aims to improve hazard awareness. Accident reduction would require a larger real-world evaluation.
+Key decisions:
 
-### Who benefits?
+- Keep image processing outside the location-warning path.
+- Cache a bounded set of upcoming hazards so each warning does not depend on a fresh server response.
+- Use geospatial indexes and map bounds to avoid downloading the entire database.
+- Keep raw citizen reports separate from canonical hazard records.
+- Refresh cached records and invalidate repaired, rejected or expired hazards.
+- Treat browser location, road matching and hazard freshness as separate confidence signals.
 
-| User | Need | GodEye response |
-|---|---|---|
-| Two-wheeler riders | Earlier awareness of uneven road surfaces | Short advance warnings with minimal interaction |
-| Car and commercial vehicle drivers | Notice of mapped road damage | Route-relevant alerts and hazard details |
-| Delivery and fleet operators | Visibility into recurring road hazards | Shared hazard records and later fleet pilots |
-| Citizens and passengers | A practical reporting channel | Location-based reports with optional photographs |
-| Road maintenance reviewers | Useful, current, reviewable evidence | Verification queue, map, and repair workflow |
+## 6. Website pages and design brief
 
-## 3. Proposed solution and boundaries
+### 6.1 Landing page — `/`
 
-GodEye combines a shared hazard database, GPS-based journey monitoring, reporting, and a reviewer dashboard. AI can help assess image evidence once an actual model or service is integrated and evaluated.
+**Purpose:** Explain GodEye and direct people to useful actions.
 
-### Core capabilities
+Sections:
 
-| Capability | Proposed behaviour | Initial priority |
-|---|---|---|
-| Hazard map | Show pothole locations, verification state, and last update | Essential |
-| Journey simulation | Move a virtual vehicle along a predefined road | Essential |
-| Advance warning | Alert near the configured approach distance | Essential |
-| Reporting | Submit location, description, and optional image | Essential |
-| Review workflow | Approve, reject, merge, or request more evidence | Essential |
-| Repair lifecycle | Track open, assigned, repaired, and rechecked hazards | Essential, simple version |
-| AI image assistance | Suggest whether an image contains visible pothole damage | Optional stretch feature |
-| Live journey mode | Use device location while the app is active | Optional after simulation works |
-| Offline hazard cache | Use previously downloaded nearby records | Later phase |
-| Native mobile driving mode | Explore platform-specific location and audio behaviour | Later phase |
+1. Header with logo and links to Map, Report, How It Works and Sign In.
+2. Hero: “Know the road ahead.” Supporting text: “Explore reported potholes, contribute road evidence, and receive browser-based warnings about verified hazards.”
+3. Primary action: “Explore Road Map.” Secondary action: “Report a Pothole.”
+4. Problem explanation with local research, interviews or properly sourced data.
+5. Three-step overview: Report → Verify → Inform.
+6. Feature cards for map discovery, image screening, active-session warnings and repair tracking.
+7. Product screenshots or actual interface previews, clearly labelled when illustrative.
+8. Measured impact section only after evidence exists. Before then, show project goals instead of invented counters.
+9. FAQ covering verification, browser limits, privacy and how to participate.
+10. Footer with contact, privacy, accessibility, data attribution and independent-project status.
 
-### Explicit boundaries
+### 6.2 Road map — `/map`
 
-- No automatic steering, braking, or vehicle control.
-- No guarantee that every pothole is detected or recorded.
-- No promise of seeing through water, fog, or other obstructions.
-- No confirmed government partnership, official integration, or mandatory installation policy.
-- No claim of measured accident reduction from a simulation.
+- Map with marker clustering and a synchronized list view.
+- Search by area; location button with explicit permission request.
+- Filters for verification state, reported severity, freshness and repair status.
+- Distinct symbols and text labels for pending, verified, disputed and repaired records.
+- Hazard details: photo, approximate location, reported severity, verification date and status history.
+- Empty, loading, permission-denied, provider-failure and network-error states.
+- Display last refresh time and avoid exposing reporter identity or travel history.
+- Actions to view details, submit evidence or begin active travel mode.
 
-Government-supported adoption is a long-term partnership idea. Start with voluntary pilots, trusted data contributors, and evidence of usefulness. A prototype cannot require installation on citizens' phones.
+### 6.3 Report a pothole — `/report`
 
-## 4. How GodEye works
+- Upload or capture a photo while stationary.
+- Set location through permission-based geolocation or manual map placement.
+- Confirm the map pin; image metadata alone is insufficient evidence of location.
+- Optional description, road name and reported severity with an “Unknown” option.
+- Show potentially matching nearby reports before creating another hazard.
+- Submit to the backend; show “Submitted — awaiting review,” not “Verified.”
+- Show image-screening progress and a clear failure state if screening is unavailable.
+- Provide a report identifier and link to its status page.
 
-### A. Create and maintain hazard records
+### 6.4 Active travel mode — `/travel`
 
-1. A stationary user or passenger reports a suspected pothole.
-2. The report includes coordinates, a description, timestamp, and optional image.
-3. If implemented, AI checks whether the image appears to contain relevant road damage and returns an uncertain suggestion.
-4. The system compares the report with nearby existing hazards to identify possible duplicates.
-5. A reviewer verifies the available evidence or requests further checking.
-6. An approved hazard becomes available for driver warnings.
-7. Repair reports trigger rechecking so obsolete warnings can be removed.
+- Pre-trip setup with “Start Travel Mode” and “Test Audio” actions.
+- Explain location access and active-page requirements before starting.
+- Show current GPS quality, last location timestamp, network state and hazard-data freshness.
+- Show the next relevant mapped hazard and an approximate distance.
+- Use short audio and visual warnings; avoid interactions that demand attention while moving.
+- Provide a prominent Stop action that ends location watching.
+- On lost location or stale data, show “Warnings unavailable” or “Limited coverage” as appropriate.
+- Treat a hidden page, locked screen or suspended browser as an interruption; reassess location and data before restoring active status.
 
-For a demo, manually seeded records are acceptable when clearly labelled. A new report should not silently become an officially verified hazard.
+### 6.5 My reports — `/my-reports`
 
-### B. Warn a driver
+List the signed-in user's reports, evidence, review decisions, timestamps and status history. Allow additional evidence and correction requests without silently replacing the audit history.
 
-1. The user opens GodEye and selects Start Journey.
-2. The app explains location use and requests permission for live mode; demo mode uses synthetic coordinates.
-3. The system retrieves relevant nearby hazards.
-4. It checks whether a hazard lies ahead on the current road or selected route.
-5. It estimates distance along the route and compares it with the warning threshold.
-6. On entering the warning area, it plays one short warning and displays a compact alert.
-7. It suppresses repeated warnings until the vehicle passes the hazard or begins a genuinely new approach.
-8. Ending the journey stops journey monitoring.
+### 6.6 Hazard details — `/hazards/:id`
 
-Suggested alert: **“Caution. Reported pothole ahead, approximately 50 metres. Reduce speed safely.”**
+Show public evidence, verification state, approximate location, last checked date and repair history. Separate AI screening output from reviewer decisions. Allow repair evidence to be submitted for review.
 
-Avoid instructions to swerve, change lanes suddenly, or brake sharply.
+### 6.7 Reviewer dashboard — `/admin`
 
-### Example scenario — synthetic
+Provide a moderation queue, evidence viewer, duplicate suggestions, status controls and audit trail. Show verified hazards by area, review backlog and ageing records. An assignment or repair-request status should be used only when an actual participating team owns that workflow.
 
-A mapped pothole is on a predefined demonstration road. A virtual vehicle starts 200 metres away. As the route distance decreases from 100 metres to around 50 metres, GodEye produces one warning. The vehicle passes the hazard and the warning is cleared. A pothole on a nearby parallel road does not trigger an alert.
+### 6.8 Supporting pages
 
-The rain or fog setting in this demo changes the scenario illustration and explanatory copy. It does not simulate validated sensor performance in actual weather.
+Sign-in, About/How It Works, Privacy, Accessibility and Contact. Publish measured results and methodology when available.
 
-## 5. Why use a hazard map instead of relying only on a camera?
+## 7. Suggested visual identity
 
-A standard photograph or camera feed may not reveal a pothole when visibility is poor or the surface is covered. A previously collected hazard record can support a warning without requiring the current driver to photograph the pothole.
+Proposed direction, subject to original design work:
 
-This introduces a different dependency: the map must be reasonably accurate and current. GodEye therefore needs both a warning system and a process for verifying, refreshing, and retiring records.
+| Element | Proposal |
+| --- | --- |
+| Name | GodEye |
+| Tagline | Know the road ahead. |
+| Logo concept | Original eye shape combined with a road or location marker |
+| Primary colour | Navy `#102033` |
+| Action colour | Teal `#0F766E` |
+| Warning colour | Amber `#F59E0B` |
+| Critical marker | Red `#DC2626`, paired with a label and icon |
+| Page background | Light grey `#F8FAFC` |
+| Typography | A readable, properly licensed sans-serif font |
 
-An eventual hybrid system could combine mapped hazards, trained image models, and fleet sensor reports. Each additional source requires independent evaluation. A single camera image should not be presented as a reliable physical depth measurement.
+Use large controls, visible keyboard focus, accessible colour contrast and text alternatives. Keep map provider attribution visible. On narrow screens, use collapsible map details; on desktop, use a map and side panel. Do not rely on colour alone to communicate hazard state.
 
-## 6. Alert distance and location design
+## 8. Warning logic and the 50-metre idea
 
-### Start with a transparent 50-metre demo
+“About 50 metres ahead” is a useful explanation of the concept, not a guaranteed detection range or a proven safe distance.
 
-Use a fixed threshold for the first simulation so viewers can understand and test it. Display distances as approximate. On a real device, location accuracy, update frequency, speed, and road geometry affect when a warning appears.
+At 60 km/h, a vehicle travels 50 metres in approximately 3 seconds. A single fixed distance is therefore unsuitable for every speed, road, device and visibility condition.
 
-| Illustrative speed | Time to travel 50 metres, assuming constant speed |
-|---|---|
-| 20 km/h | About 9 seconds |
-| 40 km/h | About 4.5 seconds |
-| 60 km/h | About 3 seconds |
-| 80 km/h | About 2.25 seconds |
+Recommended workflow:
 
-These are arithmetic examples, not recommended reaction times or braking distances.
+1. Obtain fresh location samples with permission.
+2. Fetch verified, active hazards in a bounded area around the route or position.
+3. Check sample age and reported accuracy; high-accuracy requests do not guarantee precise fixes.
+4. Determine travel direction only when movement data is sufficient.
+5. Match the user and hazard to the upcoming road segment when road geometry supports it.
+6. Estimate distance along the road; avoid treating straight-line proximity as proof that a hazard is ahead.
+7. Apply a configurable, field-tested warning threshold based on speed, uncertainty and processing delay.
+8. Give one concise warning, such as “Mapped pothole ahead. Slow down when safe.”
+9. Suppress repeated warnings until the hazard has been passed or a valid new approach occurs.
+10. Suspend precise upcoming-road claims when heading or road matching is uncertain.
 
-### Later adaptive approach
+Nearby parallel roads, flyovers and opposite carriageways require explicit testing. If reliable matching is unavailable, display a lower-confidence “Reported hazard nearby” message rather than asserting that it is on the user's road. Do not use turn-by-turn avoidance instructions without an appropriately validated navigation system.
 
-A candidate design is to compare a minimum distance with the distance travelled during a chosen warning time, then include a location uncertainty buffer. The warning time and buffer must come from testing; do not invent a universal safe value.
+## 9. Browser capabilities and limits
 
-The production design should:
+- Location access requires user permission and, in normal deployment, HTTPS.
+- Users can browse the map without granting location and place report pins manually.
+- Background tabs can be throttled; browsers and operating systems may suspend pages. Continuous locked-screen warnings are not a supported guarantee.
+- Audio can be blocked without user interaction. Test and activate it during pre-trip setup, and show failures honestly.
+- Poor GPS, stale fixes, network loss and old hazard records can affect warnings.
+- A cached hazard list can support limited operation during a connection interruption. It does not provide complete offline maps or ongoing location guarantees.
+- Installing a website as a PWA does not remove these limitations. PWA packaging is optional and remains outside the core requirement.
+- If the page resumes after interruption, reacquire a fresh fix and refresh records before showing normal coverage.
 
-- Prefer distance along the selected road or route over straight-line distance alone.
-- Check travel direction and avoid hazards behind the vehicle.
-- Account for divided roads, parallel streets, flyovers, and turns.
-- Treat poor accuracy or old location samples as reduced-confidence states.
-- Use a cooldown and a wider exit boundary to avoid alerts repeatedly toggling near the threshold.
-- Re-evaluate after a route change or U-turn.
-- Avoid claiming lane-level accuracy from ordinary phone location alone.
+GodEye is an awareness aid. Keep interaction setup stationary or passenger-operated, and avoid encouraging sudden braking or swerving.
 
-For a short prototype, a predefined route makes these conditions controllable. Clearly explain that citywide route matching is a later engineering task.
+## 10. Reporting, verification and repair lifecycle
 
-## 7. Where AI fits
+Keep incoming report review states separate from the lifecycle of a hazard:
 
-### Practical first AI feature
+| Record | Suggested states |
+| --- | --- |
+| Citizen report | Submitted, Under Review, Accepted, Rejected, Linked to Existing Hazard |
+| Canonical hazard | Verified Active, Disputed, Repair Reported, Repaired, Archived |
 
-Use an uploaded road photograph to suggest **possible pothole**, **no visible pothole**, or **uncertain**. If a detector is used, display candidate image regions and model confidence for reviewers.
+An accepted report can create or strengthen a canonical hazard. AI output is supporting evidence, not automatic verification. Multiple reports can refer to one hazard. A repair claim requires evidence and review before the hazard is removed from active warning results. Reopen hazards when later evidence shows the problem persists.
 
-### Development approach
+Store reviewer, time, reason and supporting evidence for each state change. Define a reinspection policy for old hazards; confidence should reflect freshness, not only report count.
 
-1. Identify a suitable licensed dataset and record its source and limitations.
-2. Define labels carefully; include road patches, shadows, puddles, and speed breakers as confusing examples.
-3. Separate training, validation, and test images by scene or road segment where possible to reduce near-duplicate leakage.
-4. Train or adapt an image model using team-accessible tooling.
-5. Evaluate false positives, missed detections, and performance across lighting and surface conditions.
-6. Integrate the model only after its actual outputs can be shown.
-7. Keep human review available for uncertain or consequential decisions.
+## 11. AI scope
 
-A model confidence score is not the probability that a road is dangerous. Image-based severity should remain an estimate and must not imply measured pothole depth.
+The first AI feature should screen uploaded images for visible pothole-like road damage.
 
-If time is limited, finish the warning and reporting prototype first. Mark AI as planned rather than presenting hardcoded responses as model inference. A rule-based proximity alert by itself does not establish an AI implementation.
+- Collect or select a dataset with documented usage rights and relevant road conditions.
+- Split training, validation and test data by road or collection session to reduce leakage.
+- Evaluate puddles, shadows, cracks, patched roads and low-light images as separate failure cases.
+- Store model version, detection output and screening confidence.
+- Keep model confidence separate from hazard verification confidence and severity.
+- Do not infer exact depth or GPS coordinates from a single ordinary image.
+- Allow reviewers to correct outputs and retain corrections for evaluation.
+- Handle model outages without losing the original report.
 
-## 8. Webpage and application blueprint
+A pretrained model is acceptable only after checking its licence and suitability. If AI is not implemented, label it as planned; do not present a fixed response or mock prediction as live analysis.
 
-Build a responsive website with two connected parts: a public landing page explaining GodEye and an interactive application demonstrating its core behaviour.
+## 12. Core data model
 
-### Suggested navigation
+| Entity | Important fields |
+| --- | --- |
+| User | Identifier, role, authentication reference, account timestamps |
+| Report | Reporter, submitted point, location accuracy if available, description, reported severity, review state, optional hazard link |
+| Hazard | Geographic point, optional road segment and direction, verification state, severity source, last checked date |
+| Evidence | Storage key, owner, content type, review status, capture/upload timestamps where known |
+| AI result | Evidence reference, model version, output, confidence, processing status |
+| Review event | Actor, target, decision, reason, timestamp |
+| Repair evidence | Hazard, submission, evidence references, review decision |
 
-**Home · How It Works · Live Demo · Hazard Map · Report a Pothole · Project Details**
+Use geospatial indexes for proximity queries. Store server timestamps and distinguish them from unverified client timestamps. Full travel history is not required for the core warning feature and should not be collected by default.
 
-Place reviewer access in a separate login entry. The map and demo should be easy for judges to open without creating an account.
+## 13. Backend responsibilities
 
-### Page 1 — Public landing page
+These are proposed API capabilities, not implemented endpoints:
 
-| Section | Content and design | Action |
-|---|---|---|
-| Header | GodEye wordmark and concise navigation | Try Demo |
-| Hero | Headline, value proposition, road/map illustration | Try Demo; Explore Map |
-| Problem | Explain visibility, information, and maintenance gaps | Read the problem |
-| How it works | Report → Review → Map → Warn → Recheck | Open demonstration |
-| Main features | Advance warnings, shared map, reporting, review | Explore features |
-| Demo preview | Small route visual and sample warning | Launch Demo |
-| User benefits | Drivers, communities, and maintenance teams | View use cases |
-| Current scope | Clearly distinguish implemented and planned features | View project details |
-| FAQ | Accuracy, permissions, AI, weather, and repair questions | Expand answers |
-| Footer | Team, repository, privacy information, contact | Open resources |
+| Capability | Behaviour |
+| --- | --- |
+| Browse hazards | Filter by map bounds, state and freshness; paginate results |
+| Nearby hazards | Return a bounded set of active verified records and refresh metadata |
+| Submit report | Validate fields, authorize evidence attachment and prevent accidental duplicate submissions |
+| Upload evidence | Enforce file limits, validate actual image content and protect storage access |
+| My reports | Restrict private report access to its owner or authorized reviewer |
+| Review report | Enforce reviewer role, save decision and link/create hazard transactionally |
+| Repair review | Record evidence and update the hazard only after approval |
+| AI processing | Queue work and expose processing state without blocking submission |
+| Operational health | Report service readiness and dependencies without exposing secrets |
 
-**Suggested hero copy**
+Validate permissions server-side, rate-limit abuse and record auditable moderation actions. Resolve concurrent edits explicitly rather than silently overwriting a newer decision.
 
-> **Know the road ahead.**
->
-> GodEye helps drivers anticipate mapped potholes with advance voice warnings and community-powered road information.
->
-> Explore a prototype designed to improve road hazard awareness, especially when visibility is limited.
+## 14. Implementation roadmap
 
-Buttons: **Try the Demo** and **Explore the Hazard Map**.
+### Phase 1 — Validate and specify
 
-Place this note near the demonstration: **“Prototype using labelled sample data. Alerts are approximate and depend on available hazard information.”**
+Choose one pilot area. Interview road users, document existing pain points, identify lawful data sources and define supported browsers. Record the problem, proposed value, assumptions and acceptance criteria. Start the fresh repository and design files required by the event.
 
-Do not display fabricated impact counters such as “10,000 lives saved.” A real database count may say “12 sample hazards” if that is what it contains.
+### Phase 2 — Build the working web core
 
-### Page 2 — Interactive journey demo
+Implement the React pages, FastAPI service, database, authentication, image storage, real report submission and moderation. Confirm that reports persist after refresh and that public records reflect actual reviewer decisions.
 
-**Purpose:** Make the advance-warning concept understandable in under one minute.
+### Phase 3 — Add location awareness
 
-Required interface elements:
+Implement permission handling, active location watching, hazard queries, road relevance checks, audio setup, duplicate-warning suppression and interruption states. Validate in controlled, passenger-operated sessions.
 
-- Persistent **DEMO MODE — SYNTHETIC DATA** banner.
-- Map or accurate route visual with a moving vehicle and hazard markers.
-- Start, Pause, Reset, and Mute controls.
-- Distance to next relevant hazard and illustrative speed.
-- Optional Normal, Rain, and Fog scenario selectors, labelled as visual scenarios.
-- One warning card and an event log.
-- Visible audio state; a failed sound attempt must not be shown as successfully played.
+### Phase 4 — Add AI screening
 
-Expected states: Ready, Running, Paused, Warning, Hazard Passed, Journey Complete, and Error.
+Integrate the image worker, expose screening state and test actual model outputs. Keep the review workflow usable when AI is uncertain or unavailable.
 
-Use a normal browser session for the controlled demo. Do not depend on judges physically driving or granting location permission.
+### Phase 5 — Operate a limited pilot
 
-### Page 3 — Hazard map
+Deploy over HTTPS, establish backups, test recovery, monitor errors and review incorrect warnings. Expand coverage only after checking data quality and field results. A working event submission can cover a small area; production readiness requires additional evidence and operational work.
 
-Show a city-area map with markers and an accessible list alternative. Support filters for verification state, estimated severity, and freshness. Keep maintenance status separate from verification status.
+## 15. Acceptance and field-testing checklist
 
-Each hazard detail panel should show approximate location, report time, last verification, evidence if permitted, and repair status. Provide a “Report an update” action.
+- A user can submit an actual report and see its persisted review state.
+- A reviewer can verify, merge or reject it, with a recorded reason.
+- Pending reports do not appear as verified warnings.
+- A repaired hazard is excluded from active results and removed from refreshed caches.
+- Denied location permission leaves manual map browsing usable.
+- A stale or inaccurate fix never appears as precise live tracking.
+- Wrong-road, opposite-direction and duplicate warnings are measured in controlled tests.
+- Audio blocking, absent speed data, network failure and AI failure have clear fallbacks.
+- Travel mode stops location watching when the user ends the session.
+- Hidden-page and screen-lock behaviour is tested on actual supported devices and documented.
+- API authorization prevents citizens from approving reports or reading other users' private information.
+- Upload validation and data-deletion requests work.
+- Keyboard access, mobile-browser layouts, error messages and map alternatives are checked.
 
-Always provide an empty state: **“No mapped hazards in this area. This does not confirm that the road is hazard-free.”**
+Use unit tests for distance and state logic, integration tests for data and authorization, and end-to-end tests for reporting and review. Test travel behaviour using synthetic routes first, then controlled passenger-operated validation. Synthetic routes must be labelled; they do not prove field reliability.
 
-### Page 4 — Report a pothole
+## 16. Operational and privacy requirements
 
-Fields: selected map location, location accuracy if available, optional photograph, description, and optional estimated severity. Let a user correct an inaccurate pin before submitting.
+Serve traffic over HTTPS, keep credentials outside the frontend, restrict database access and use least-privilege storage permissions. Configure allowed frontend origins, upload limits and abuse controls. Use background workers with retry limits and observable failures.
 
-Display: **“Submit only when stationary or as a passenger.”**
+Provide a privacy notice explaining location use, evidence retention, account data and deletion. Process travel location locally where practical. Remove unnecessary photo metadata from public copies and redact identifiable faces or number plates before publication. Restrict original evidence to appropriate reviewers.
 
-Show upload progress, validation errors, and a submission reference. Tell users that the report is pending review. Do not require a phone number or full journey history for an ordinary report.
+Monitor API errors, AI queue failures, map-provider errors and stale-data rates. Maintain backups, rehearse restoration and keep a rollback procedure. Define who reviews urgent mistakes and who maintains hazards after the event.
 
-### Page 5 — Reviewer dashboard
+## 17. Evidence and success measures
 
-Show incoming reports, suspected duplicates, evidence, and status controls. Reviewers can approve or reject reports, merge duplicate evidence, flag stale records, assign repair work within the prototype, and record a recheck.
+Measure useful behaviour before claiming public-safety impact:
 
-Use role-based access. A public visitor must not be able to approve a report or change repair status. Any seeded account must contain demonstration data only.
+- Accepted and rejected reports, verification turnaround and duplicate rate.
+- Percentage of active hazards checked within the selected freshness policy.
+- AI precision and recall on a held-out, relevant dataset.
+- Missed warnings and false warnings in controlled sessions.
+- Warning lead time, GPS accuracy and interruption frequency.
+- User feedback and successful task completion.
 
-### Page 6 — Project details
+Define how each metric is measured and its denominator. Do not infer accidents prevented from report counts, map views or warnings delivered. Distinguish measured, estimated, synthetic and planned information throughout the website and presentation.
 
-Explain the problem research, implemented features, architecture, AI status, limitations, team roles, and future roadmap. Link the README, repository, launch film, and explainer when available. Add actual setup instructions after implementation.
+## 18. Project management
 
-## 9. Brand and interface direction
+Suggested allocation for a five-person team; combine roles according to skills:
 
-**Name:** GodEye  
-**Tagline:** Know the road ahead.  
-**Brand tone:** Calm, clear, practical, community-minded.
+| Owner | Main deliverables |
+| --- | --- |
+| Team lead / backend developer | Scope, API, data model, integration and submission tracking |
+| Frontend developer | React pages, reporting and map interface |
+| AI / geospatial developer | Image screening, location relevance and validation |
+| Designer / researcher | Brand kit, accessible layouts, interviews and usability feedback |
+| Video editor / storyteller | Launch film, explainer, original social content and evidence capture |
 
-Suggested original logo direction: an eye-shaped route symbol with a small road marker. Do not use government emblems or imply official endorsement. Check name availability and possible trademark conflicts before a public commercial launch.
+Each feature should have an owner, acceptance criteria, dependency and status. Review progress against working user journeys rather than the number of completed screens. Limit the initial coverage area before compromising verification or presenting unfinished features as complete.
 
-| Design role | Suggested colour |
-|---|---|
-| Main background | Deep navy — #0B1220 |
-| Primary action | Cyan — #22D3EE |
-| Main text on dark surfaces | Near white — #F8FAFC |
-| Warning | Amber — #F59E0B |
-| High-severity indicator | Red — #EF4444 |
-| Resolved status | Green — #22C55E |
+## 19. CityFix submission alignment
 
-Use a readable sans-serif family such as Inter or a system font. Verify actual colour contrast in the final layout, especially text on coloured buttons. Never communicate hazard status by colour alone; include icons and text.
+Based on the attached **Problem Statement - CityFix** document:
 
-On mobile, prioritize the map, current state, and one primary action. Driving mode should emphasize audio and large readable status text. Respect reduced-motion settings and avoid flashing alerts. Provide keyboard access, labelled controls, and text equivalents for audio.
+- Submit a functional solution; static screens or this README alone do not satisfy the working-product requirement.
+- Provide a public landing page and accessible product link wherever feasible.
+- Include problem research, implementation decisions, limitations and future improvements.
+- Provide source files and actual setup instructions once the implementation exists.
+- Create an original brand kit as a PDF or Figma link.
+- Produce a 60–90 second launch film.
+- Produce a 2–3 minute explainer including the working solution; the document says there is no demo day.
+- Create new project-named Instagram and X accounts and submit at least five posts.
+- Use both `#TutedudeBuildathon` and `#BuildForMyCity`, and tag the organizers using their verified handles.
+- Keep engagement organic and submit the required most-liked-post screenshot.
+- Disclose libraries, datasets, APIs and AI tools, and respect their licences.
+- Label synthetic or estimated data and do not claim unauthorized government affiliation.
+- The supplied document states a final deadline of **28 November 2026, 11:59 PM**. It does not explicitly identify the deadline timezone; confirm that with the organizers.
 
-## 10. Technical architecture — conceptual
+The event requires original project work during its seven-day window and a fresh repository and design file from Day 1. Follow those requirements when building and documenting the product.
 
-| Component | Responsibility |
-|---|---|
-| Web frontend | Landing page, map, demo controls, reporting, reviewer interface |
-| Location and warning module | Read live or simulated location, select relevant hazards, trigger alerts |
-| Backend service | Validate reports, serve hazard records, enforce permissions |
-| Spatial data store | Save hazard locations, evidence metadata, verification, and repair state |
-| Image storage | Hold uploaded images with access and retention controls |
-| Optional AI service | Assess image evidence and return suggestions |
-| Reviewer workflow | Record moderation actions and repair updates |
+## 20. Suggested presentation walkthrough
 
-### Implementation choices
+This README can support a project explanation and working-product presentation. It does not replace the application.
 
-For a small team, use the frontend framework, backend, database, and hosting service the team already understands. A simple architecture is enough. A relational database with spatial support is a useful later option when nearby queries and route matching become more demanding.
+1. Explain the local road-hazard problem using actual research.
+2. Open the landing page and clarify the website-only scope.
+3. Show the map and explain verified versus pending records.
+4. Submit a report and show the actual saved state.
+5. Review the report through an authorized account.
+6. Demonstrate proximity behaviour in a labelled controlled test; describe browser limits.
+7. Show actual AI screening if implemented, or explicitly identify it as planned.
+8. Show the repair workflow and finish with measured results and next steps.
 
-A map library displays geographic information; map tiles and routing are separate services. Check attribution, licences, quotas, and cost before choosing providers. Do not expose private service credentials in the browser.
+Suggested closing pitch: “GodEye is a web platform that connects road reports, evidence review and location-based awareness. It helps people understand mapped road hazards and helps teams keep those records current. We will evaluate its warning reliability in a limited pilot before making wider safety claims.”
 
-Keep the AI service optional so a model failure does not prevent the map or report workflow from operating. Persist accepted reports in the backend; a page refresh should not erase them unless the demo explicitly declares temporary browser-only storage.
+## 21. Repository documentation to add after implementation
 
-### Browser and mobile constraints
+Do not invent setup commands before the project exists. Add the following when the actual repository is available:
 
-Browser geolocation requires a secure context and user permission. Continuous position updates are available through the browser API, but the project still needs to handle permission denial and errors. See [MDN: Geolocation API](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API).
+- Verified frontend and backend prerequisites and installation steps.
+- Environment-variable names, with example values that contain no secrets.
+- Database migration and development-data instructions.
+- Worker and model setup, including model and dataset licences.
+- Instructions for running services and tests.
+- Deployment configuration, supported browsers and known issues.
+- Live links, screenshots, team credits and measured feature status.
+- Explicit distinction between implemented functionality and roadmap items.
 
-The first website should demonstrate an active, visible session. Do not promise dependable locked-screen driving operation based on a website alone. A later native implementation must account for operating-system location restrictions; see [Android: Background location](https://developer.android.com/develop/sensors-and-location/location/background).
+## 22. Technical references
 
-## 11. Data model
+Browser implementation references:
 
-The following is a planning model, not a required database schema.
+- Geolocation, permissions and secure contexts: https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API
+- Location updates: https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/watchPosition
+- Hidden-page behaviour: https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API
+- Audio restrictions: https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay
 
-| Record | Important information |
-|---|---|
-| Hazard | ID, coordinates, road reference, estimated severity, verification state, repair state, first report time, last verified time |
-| Report | ID, linked hazard if known, coordinates, location accuracy, timestamp, description, optional evidence, moderation state |
-| AI assessment | Report ID, model version, suggested class, confidence, review outcome |
-| Repair update | Hazard ID, status, update time, authorized reviewer, evidence if available |
-| Review event | Target record, action, reviewer, timestamp, reason |
-| User role | Minimal account identifier and authorized permissions |
-
-**Verification states:** Unreviewed, Community-supported, Reviewer-verified, Disputed, Stale.
-
-**Maintenance states:** Open, Assigned, Repair Reported, Repair Verified, Reopened.
-
-A hazard can be reviewer-verified while repair work is assigned. Keeping the two dimensions separate avoids confusing evidence quality with maintenance progress.
-
-New evidence may reopen a previously resolved hazard. Multiple reports should usually strengthen one hazard record rather than create many overlapping warning markers.
-
-## 12. Trust, privacy, and data freshness
-
-- Request location only when needed for an explained feature.
-- Prefer on-device journey calculations where feasible; a live journey does not automatically require server-side trip storage.
-- Stop monitoring when the user ends the session.
-- Keep reporting identity private and collect only necessary account details.
-- Do not retain complete trip histories by default.
-- Explain what report data is public, who can review images, and how deletion requests work.
-- Restrict administrative actions and record an audit history.
-- Blur faces and number plates before public display; review images for other personal information.
-- Rate-limit submissions and review suspicious reporting patterns.
-- Show timestamps and expire or recheck stale information.
-- Treat repeated community reports as evidence, not automatic proof.
-
-The interface should say **“No current data available”** when information is missing or too old. It should never translate missing data into a green “safe road” guarantee.
-
-## 13. Important failure states
-
-| Situation | Expected behaviour |
-|---|---|
-| Location permission denied | Explain how to enable it; keep simulation available |
-| Poor or stale location | Show reduced accuracy; avoid precise-distance promises |
-| Network unavailable | Use a valid labelled cache if implemented; otherwise show data unavailable |
-| Audio unavailable | Keep a clear visual alert and show muted/unavailable state |
-| Parallel road hazard | Suppress it when route context identifies a different road |
-| New report awaiting review | Display pending status; do not imply official confirmation |
-| AI uncertain or offline | Continue manual reporting and review |
-| Hazard marked repaired | Require appropriate verification before retiring warnings |
-| Outdated hazard record | Show age and request rechecking |
-| Journey stopped | Stop location monitoring and clear journey alerts |
-
-## 14. Minimum working prototype
-
-The smallest credible version should let a judge:
-
-1. Open the public landing page.
-2. Launch a clearly labelled simulated journey.
-3. Observe route distance decreasing toward a seeded pothole.
-4. Receive one warning around the configured threshold.
-5. Submit a sample pothole report and see its pending status.
-6. Use a reviewer session to approve the report.
-7. See the approved hazard on the shared map after refresh.
-8. Follow a repair status update through the basic review process.
-
-If full route matching is not implemented, constrain the journey to a known route and disclose that scope. If AI is absent, describe the delivered product as a location-based prototype with planned AI assistance.
-
-### Acceptance checklist
-
-- [ ] Public link opens on desktop and mobile.
-- [ ] Demo works without location permission.
-- [ ] A mapped hazard ahead triggers one visual warning.
-- [ ] Voice warning works after the required user interaction, or its unavailable state is explicit.
-- [ ] A hazard behind the vehicle does not produce an approach warning.
-- [ ] The controlled parallel-road scenario avoids a false alert.
-- [ ] Pause and Reset behave predictably; reset clears previous alert state.
-- [ ] Reports persist as declared and begin in a pending state.
-- [ ] Unauthorized users cannot approve reports or change repair status.
-- [ ] Missing-data, permission, network, and empty-map states are understandable.
-- [ ] Sample data and simulated weather are labelled.
-- [ ] Claims match the actual demonstration.
-
-## 15. Development roadmap
-
-Build in vertical slices: finish one complete user action before adding another partially working module.
-
-| Phase | Work | Completion evidence |
-|---|---|---|
-| 1. Validate and define | Speak with potential users, choose a narrow demo area, define scenarios | Research notes and agreed scope |
-| 2. Brand and structure | Create original identity, page layouts, and feature copy | Consistent responsive designs |
-| 3. Core warning | Build route simulation, hazard relevance checks, audio and visual alert | Repeatable working journey |
-| 4. Reporting loop | Add submissions, persistence, review, and map updates | Report-to-map demonstration |
-| 5. Optional AI | Integrate and evaluate image assistance if feasible | Actual inference with disclosed limits |
-| 6. Verify and communicate | Test key cases, publish, record videos, prepare submission | Accessible links and complete checklist |
-
-### Illustrative seven-day team plan
-
-| Day | Main outcome |
-|---|---|
-| 1 | Fresh repository/design file, problem research, scope, responsibilities |
-| 2 | Brand kit, responsive layout, seeded map and route |
-| 3 | Working simulation and warning behaviour |
-| 4 | Report submission, backend persistence, review workflow |
-| 5 | Integration, accessibility checks, optional AI only if core works |
-| 6 | Public deployment, user feedback, launch and explainer recordings |
-| 7 | Fix failures, verify links, finalize documentation and submission |
-
-This is a relative plan, not a claim about time remaining in the event. Use the organizer's actual schedule and remaining time to reduce scope when necessary.
-
-### Five-member responsibilities
-
-| Role | Primary responsibility |
-|---|---|
-| Team lead / integration developer | Scope, integration, deployment, organizer contact |
-| Application developer | Simulation, reporting, data, reviewer workflow |
-| Designer | Brand kit, webpage layout, accessibility, interface assets |
-| Video editor | Launch film, screen recordings, explainer editing |
-| Research / QA / communications member | Validation, testing, documentation, original social content |
-
-Adjust the split to actual skills. All members should understand the implemented flow and its limits.
-
-## 16. Research and evaluation plan
-
-Before claiming impact, ask riders and drivers when road hazards are hardest to anticipate, what warnings they would tolerate, and what makes hazard information trustworthy. Ask a maintenance stakeholder, if accessible, what report details would help their existing workflow. Record respondent counts honestly and obtain consent for quotations.
-
-For any comparison with existing products, inspect the specific product and document what you actually observe. Do not claim that no existing navigation service warns about road hazards. GodEye's proposed focus is a clearly demonstrated pothole warning and evidence-to-repair workflow.
-
-### Measure what the prototype can establish
-
-| Metric | Definition |
-|---|---|
-| Scenario pass rate | Passed predefined scenarios divided by scenarios executed |
-| Warning distance error | Difference between target and measured alert position within the test setup |
-| Missed warnings | Relevant test hazards approached without the expected alert |
-| False warnings | Alerts for irrelevant or absent hazards in the tested scenarios |
-| Duplicate warnings | Extra alerts during the same approach |
-| Report completion | Whether test users can successfully submit a valid report |
-| Review turnaround | Time between a report and its review decision during the pilot |
-| AI quality, if implemented | Precision, recall, and error examples on a held-out dataset |
-
-Simulation results establish prototype behaviour under controlled inputs. They do not establish real-world location accuracy, all-weather performance, or accident reduction.
-
-## 17. Demo and presentation guide
-
-### Can this README be used for a project demo?
-
-**Yes.** Use it as the project overview, explanation guide, development reference, and source for presentation slides or narration. Present the working prototype alongside it. The attached challenge requires a functional solution; a README or static design alone does not satisfy that requirement.
-
-### Two-to-three-minute explainer outline
-
-| Time | What to show | What to explain |
-|---|---|---|
-| 0:00–0:20 | Original road illustration or permitted footage | Drivers can receive road damage information too late |
-| 0:20–0:40 | Landing page | GodEye connects mapped potholes with advance warnings |
-| 0:40–1:25 | Working journey simulation | Start, approach, approximately 50-metre alert, pass hazard |
-| 1:25–1:55 | Reporting and review | New evidence becomes a reviewed map record |
-| 1:55–2:20 | Architecture and actual AI module, if implemented | Explain which parts are rules, location logic, and AI |
-| 2:20–2:45 | Limits and roadmap | Describe current scope, validation needs, and pilot plans |
-
-### Short narration
-
-> Road damage can be difficult to notice in time, especially when visibility is poor. GodEye is our proposed platform for earlier awareness of mapped potholes.
->
-> In this labelled simulation, a vehicle travels toward a known hazard. When it reaches the configured approach distance of approximately 50 metres, the application provides a short warning. The warning uses location and route information rather than assuming that a camera can see through fog or rainwater.
->
-> Users can submit new reports, and reviewers can check evidence, update the shared map, and track repair progress. Our current demonstration uses the features shown on screen; any remaining features are marked as planned.
->
-> Our next step is controlled field validation of alert timing, location quality, and report freshness. GodEye aims to improve road hazard awareness, with real-world safety impact to be evaluated through future pilots.
-
-### Sixty-to-ninety-second launch film idea
-
-Open with an original illustration of a driver discovering road damage late. Introduce “Know the road ahead,” show the working warning, explain the report-and-review loop, and close with the demo link. Keep simulated scenes labelled and avoid unsupported statistics or implied official endorsement.
-
-### Questions a project manager or judge may ask
-
-**How does it work when the pothole is hidden?**  
-It can warn about a previously mapped location. It may miss a new or unmapped hazard.
-
-**Why 50 metres?**  
-It is an understandable starting threshold for the demonstration. Real-world warning distance must adapt to speed and uncertainty and be validated.
-
-**Where is the AI?**  
-In image-based report assistance if that feature has actually been integrated. The GPS warning uses location and route logic.
-
-**Will the government install it on every phone?**  
-That is not an existing arrangement. Future public-sector partnerships would require independent agreement and a validated product.
-
-**How will the map become useful initially?**  
-Start with a small verified area, clearly labelled seed data for demos, and a pilot with contributors who regularly travel selected roads.
-
-**What happens after repair?**  
-A repair update triggers verification. Once confirmed, the hazard is retired from active warnings while its history is retained according to the data policy.
-
-**Can a website be the first version?**  
-Yes, for the landing page, reporting, review, and an active-session demonstration. Dependable field operation requires additional device and platform testing.
-
-## 18. Alignment with the attached CityFix brief
-
-This section reflects the provided **Problem Statement - CityFix.docx**, not independent verification of later organizer updates.
-
-| Required deliverable | GodEye submission |
-|---|---|
-| Functional solution | Working warning simulation and report-review-map loop |
-| Problem research and validation | User observations, interviews or survey findings, limitations |
-| Brand kit | Original GodEye logo, colours, typography, identity |
-| Public landing page | Deployed introduction and clear demo access |
-| Launch film | Original 60–90-second film |
-| Explainer video | 2–3-minute explanation including the working solution |
-| Project documentation | This README updated with actual implementation and evidence |
-| Source/project files | Fresh repository and relevant design/project files |
-| Social posts | At least five posts, following the brief's account and posting requirements |
-| Engagement evidence | Screenshot of the most-liked eligible post at the deadline |
-| Tool disclosure | Actual AI tools, libraries, APIs, datasets, and licences |
-
-According to the attached brief:
-
-- Teams have five members and one designated lead.
-- Original work must be created during the seven-day Buildathon, with a fresh repository and design file where applicable.
-- Demo, synthetic, and estimated data are permitted when clearly labelled.
-- Static mockups or conceptual ideas alone do not qualify as the working solution.
-- Create new project-named accounts on Instagram and X; use **#TutedudeBuildathon** and **#BuildForMyCity**, and tag the organizers using their verified event-provided handles.
-- Engagement must be organic; the brief prohibits paid promotion, purchased likes, bots, and engagement groups.
-- Do not impersonate government authorities or imply an unapproved government affiliation.
-- Obtain relevant filming permissions and protect identifiable faces and number plates.
-- The listed submission deadline is **Saturday, 28 November 2026, 11:59 PM**. The document does not state a timezone; confirm it with the organizers rather than assuming one.
-
-The provided document does not expose readable judging weights, so this README assigns none. Follow any official updates supplied by the organizers.
-
-## 19. Final handoff and submission checklist
-
-### Replace these items once the product exists
-
-| Item | Value to add |
-|---|---|
-| Live landing page | Actual public URL |
-| Working demo | Actual demo URL |
-| Source repository | Actual repository URL |
-| Implemented features | Tested list, separate from planned features |
-| Technology stack | Actual frameworks, services, and versions |
-| Setup and execution | Real prerequisites, configuration names, run instructions, and sample-data setup |
-| Deployment details | Actual hosting requirements and environment configuration |
-| AI disclosure | Model/service, dataset, licence, evaluation, or “not implemented” |
-| Demo data | Origin, synthetic labels, reset behaviour, and persistence scope |
-| Reviewer access | Safe demonstration access method, without production credentials |
-| Validation | Scenarios tested, outcomes, unresolved issues |
-| Team | Names and actual roles |
-| Brand kit and videos | Accessible links |
-| Social submission | Post links and eligible engagement screenshot |
-| Project licence and credits | Team decision and third-party acknowledgements |
-
-### Before sharing
-
-- [ ] All links open without unintended access restrictions.
-- [ ] The core warning works in the recorded and live demonstration.
-- [ ] The team can explain its implementation decisions.
-- [ ] Actual features, planned features, and simulations are clearly separated.
-- [ ] No fabricated statistics, testimonials, partnerships, or safety outcomes appear.
-- [ ] Data sources and external tools are credited with relevant licences.
-- [ ] The README contains real setup instructions once code is submitted.
-- [ ] Event deliverables and deadline requirements have been checked against organizer updates.
-
-## 20. Technical references
-
-- [MDN — Geolocation API](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API): browser location permission and secure-context requirements.
-- [MDN — watchPosition](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/watchPosition): receiving browser location updates.
-- [Android Developers — Background location](https://developer.android.com/develop/sensors-and-location/location/background): background location considerations for a later Android implementation.
-- **Provided attachment:** Problem Statement - CityFix.docx, used for challenge deliverables and submission requirements.
-
-**GodEye — Know the road ahead.**
+Project requirements source: user-attached **Problem Statement - CityFix.docx**. Product architecture, screens and workflow in this README are proposed design decisions for GodEye, not additional event mandates.
