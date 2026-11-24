@@ -1,17 +1,19 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { API_BASE_URL } from '../config'
+// import { API_BASE_URL } from '../config'
 import LocationPicker from './LocationPicker'
+import { submitReport } from '../api/reports'
+import { useAuth } from '../hooks/useAuth'
+import AuthControls from './AuthControls'
 
 import type { ReportCreate, ReportRead } from '../types/report'
 
 function ReportForm() {
+    const { user, loading: authLoading } = useAuth()
     const submittingRef = useRef(false)
-
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
     const [savedReport, setSavedReport] = useState<ReportRead | null>(null)
-
     const [latitude, setLatitude] = useState('')
     const [longitude, setLongitude] = useState('')
 
@@ -36,6 +38,10 @@ function ReportForm() {
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
 
+        if (authLoading || !user) {
+            setError('Report bhejne ke liye pehle login karein.')
+            return
+        }
         // Prevent another submission while this request is running.
         if (submittingRef.current) {
             return
@@ -103,41 +109,17 @@ function ReportForm() {
         setIsSubmitting(true)
 
         try {
-            const response = await fetch(
-                `${API_BASE_URL}/api/reports`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                },
-            )
-
-            if (!response.ok) {
-                if (response.status === 422) {
-                    setError(
-                        'Some report details are invalid. Check the fields and try again.',
-                    )
-                } else {
-                    setError(
-                        'The server could not save your report. Please try again later.',
-                    )
-                }
-
-                return
-            }
-
-            const report: ReportRead = await response.json()
+            const report = await submitReport(payload)
 
             setSavedReport(report)
             form.reset()
             setLatitude('')
             setLongitude('')
-        } catch {
+        } catch (caughtError) {
             setError(
-                'Could not confirm submission. Your report may have reached ' +
-                'the server. Check your connection before submitting again.',
+                caughtError instanceof Error
+                    ? caughtError.message
+                    : 'Report submission confirm nahi ho saka.',
             )
         } finally {
             submittingRef.current = false
@@ -163,13 +145,29 @@ function ReportForm() {
                 information in the description.
             </p>
 
+            {authLoading && (
+                <p className="section-note" role="status">
+                    Checking login...
+                </p>
+            )}
+
+            {!authLoading && !user && (
+                <div className="tracking-panel">
+                    <p className="section-note">
+                        The report will be linked to your account. Please sign in with Google first.
+                    </p>
+
+                    <AuthControls />
+                </div>
+            )}
+
             <form
                 className="report-form"
                 onSubmit={handleSubmit}
                 aria-describedby="report-guidance"
                 aria-busy={isSubmitting}
             >
-                <fieldset disabled={isSubmitting}>
+                <fieldset disabled={isSubmitting || authLoading || !user}>
                     <legend>Pothole details</legend>
 
                     <div className="form-field">
