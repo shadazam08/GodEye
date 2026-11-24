@@ -886,3 +886,52 @@
   line-height: 1.9;
 }
 
+/* User authentication */
+.site-header {
+  flex-wrap: wrap;
+  padding-block: 10px;
+}
+
+.auth-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+}
+
+.auth-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.auth-status {
+  max-width: 200px;
+  color: #cbd5e1;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.auth-controls .button {
+  min-height: 42px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.auth-error {
+  flex-basis: 100%;
+  max-width: 360px;
+  margin: 4px 0 0;
+  color: #fda4af;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (max-width: 700px) {
+  .auth-controls {
+    order: 4;
+    width: 100%;
+  }
+}

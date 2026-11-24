@@ -1,3 +1,5 @@
+import AuthControls from './AuthControls'
+
 function Header() {
   return (
     <header className="site-header">
@@ -19,6 +21,7 @@ function Header() {
       <a className="button button-small" href="#report-pothole">
         Report a pothole <span aria-hidden="true">↗</span>
       </a>
+      <AuthControls />
     </header>
   )
 }

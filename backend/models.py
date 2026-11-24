@@ -44,6 +44,12 @@ class Report(Base):
         default=uuid.uuid4,
     )
 
+    reporter_uid: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        index=True,
+    )
+
     title: Mapped[str] = mapped_column(
         String(120),
         nullable=False,
@@ -86,6 +92,7 @@ class Report(Base):
         nullable=False,
         server_default=func.now(),
     )
+
 
 class ReviewEvent(Base):
     __tablename__ = "review_events"

@@ -5,6 +5,8 @@ import HazardMap from './components/HazardMap'
 import BackendStatus from './components/BackendStatus'
 import ReportForm from './components/ReportForm'
 import ReviewerPanel from './components/ReviewerPanel'
+import AccountVerification from './components/AccountVerification'
+import MyReports from './components/MyReports'
 
 function App() {
   return (
@@ -14,6 +16,7 @@ function App() {
 
       <main>
         <BackendStatus />
+        {import.meta.env.DEV && <AccountVerification />}
         {/* Main introduction */}
         <section className="hero section-container" id="home">
           <div className="hero-content">
@@ -196,6 +199,7 @@ function App() {
           </div>
         </section>
         <ReportForm />
+        <MyReports />
         <HazardMap />
         <ReviewerPanel />
       </main>

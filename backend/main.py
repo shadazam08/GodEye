@@ -7,14 +7,21 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from database import get_db
 from models import Report, ReviewEvent
-from schemas import ReportCreate, ReportRead, ReportReview, ReviewEventRead, MapMatchRequest, ProviderMatchResponse
+from schemas import ReportCreate, ReportRead, ReportReview, ReviewEventRead, MapMatchRequest, ProviderMatchResponse, UserRead
 from typing import Literal
 from security import require_reviewer
 from uuid import UUID
+from user_auth import CurrentUser, require_authenticated_user
 
 from services.map_matching import (
     MapMatchingError,
     match_location_samples,
+)
+
+from user_auth import (
+    CurrentUser,
+    require_authenticated_user,
+    require_verified_user,
 )
 
 
@@ -55,10 +62,17 @@ def health_check():
 def create_report(
     payload: ReportCreate,
     db: DatabaseSession,
+    user: Annotated[
+        CurrentUser,
+        Depends(require_verified_user),
+    ],
 ):
     try:
         with db.begin():
-            report = Report(**payload.model_dump())
+            report = Report(
+                **payload.model_dump(),
+                reporter_uid=user.uid,
+            )
 
             db.add(report)
             db.flush()
@@ -73,7 +87,6 @@ def create_report(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not save the report. Please try again later.",
         ) from None
-
 
 @app.get(
     "/api/hazards",
@@ -294,4 +307,54 @@ def match_trace(payload: MapMatchRequest):
                 "code": error.code,
                 "message": str(error),
             },
+        ) from None
+
+@app.get(
+    "/api/me",
+    response_model=UserRead,
+)
+def get_current_user(
+    user: Annotated[
+        CurrentUser,
+        Depends(require_authenticated_user),
+    ],
+):
+    return UserRead.model_validate(user)
+
+@app.get(
+    "/api/my/reports",
+    response_model=list[ReportRead],
+)
+def get_my_reports(
+    db: DatabaseSession,
+    user: Annotated[
+        CurrentUser,
+        Depends(require_authenticated_user),
+    ],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    statement = (
+        select(Report)
+        .where(Report.reporter_uid == user.uid)
+        .order_by(
+            Report.created_at.desc(),
+            Report.id.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+
+    try:
+        reports = db.scalars(statement).all()
+
+        return [
+            ReportRead.model_validate(report)
+            for report in reports
+        ]
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not load your reports. Please try again later.",
         ) from None

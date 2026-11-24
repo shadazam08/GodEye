@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GOD EYE - Omniscient Surveillance</title>
+
+  <!-- Favicons & App Icons -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+
+  <!-- Open Graph / Social Media Preview -->
+  <meta property="og:title" content="GOD EYE - Omniscient Surveillance">
+  <meta property="og:image" content="og-image-1200x630.jpg">
+
+  <style>
+    body { margin: 0; background: #090d16; color: #fff; font-family: sans-serif; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: rgba(9,13,22,0.9); border-bottom: 1px solid #1e293b; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: bold; letter-spacing: 2px; }
+    .mute-btn { background: transparent; border: 1px solid #38bdf8; border-radius: 8px; padding: 6px; cursor: pointer; display: flex; align-items: center; }
+    .hero img { width: 100%; max-height: 520px; object-fit: cover; display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img src="logo-transparent-512.png" alt="GOD EYE Logo" width="40" height="40">
+      <span>GOD EYE</span>
+    </div>
+    <button class="mute-btn" id="muteToggle" title="Mute / Unmute">
+      <img id="muteIcon" src="icon-mute.svg" alt="Mute Icon" width="24" height="24">
+    </button>
+  </header>
+
+  <section class="hero">
+    <picture>
+      <source srcset="banner.webp" type="image/webp">
+      <img src="banner.jpg" alt="GOD EYE Banner">
+    </picture>
+  </section>
+
+  <script>
+    let isMuted = true;
+    document.getElementById('muteToggle').addEventListener('click', () => {
+      isMuted = !isMuted;
+      document.getElementById('muteIcon').src = isMuted ? 'icon-mute.svg' : 'icon-unmute.svg';
+    });
+  </script>
+</body>
+</html>

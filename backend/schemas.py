@@ -244,3 +244,9 @@ class ProviderMatchResponse(MatchingResponseBase):
     type: Literal["FeatureCollection"]
     features: list[MatchedRouteFeature]
 
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    uid: str
+    email: str | None
+    email_verified: bool
+    name: str | None
