@@ -345,3 +345,806 @@ body {
   margin-top: 3px;
   accent-color: var(--ge-blue);
 }
+
+/* Driver journey workspace */
+.driver-page {
+  width: min(1480px, calc(100% - 48px));
+}
+
+.driver-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.driver-heading .eyebrow {
+  margin-bottom: 6px;
+  font-size: 10px;
+}
+
+.driver-heading h1 {
+  margin: 0;
+  color: var(--ge-text);
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.2;
+  letter-spacing: -1px;
+}
+
+.driver-heading-note {
+  color: var(--ge-muted);
+  font-size: 12px;
+}
+
+.driver-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.driver-sidebar {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--ge-border);
+  border-radius: 20px;
+  background: var(--ge-surface);
+}
+
+.driver-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.driver-step {
+  display: grid;
+  flex: 0 0 38px;
+  place-items: center;
+  height: 38px;
+  border: 1px solid #756346;
+  border-radius: 12px;
+  background: rgba(231, 190, 131, 0.08);
+  color: var(--ge-gold);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.driver-sidebar-title h2 {
+  margin: 0 0 3px;
+  font-size: 17px;
+}
+
+.driver-sidebar-title p,
+.driver-empty-route {
+  margin: 0;
+  color: var(--ge-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.driver-sidebar .destination-search,
+.driver-sidebar .route-planner {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.driver-sidebar .destination-search-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.driver-sidebar .destination-search-row input {
+  width: 0;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.driver-sidebar .destination-search label {
+  font-size: 13px;
+}
+
+.driver-sidebar .destination-selected {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-color: var(--ge-border);
+}
+
+.driver-sidebar .destination-selected p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.driver-sidebar .route-planner {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ge-border);
+}
+
+.driver-sidebar .route-planner-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.driver-sidebar .route-planner-controls label {
+  min-width: 0;
+  font-size: 13px;
+}
+
+.driver-sidebar .route-summary {
+  gap: 8px 16px;
+  padding: 14px;
+  border: 1px solid #3e6170;
+  background: rgba(169, 226, 238, 0.07);
+}
+
+.driver-sidebar .route-summary strong {
+  font-size: 25px;
+  letter-spacing: -0.6px;
+}
+
+.driver-sidebar .route-summary p,
+.driver-sidebar .route-summary small,
+.driver-sidebar .section-note {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.driver-information {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ge-border);
+  color: var(--ge-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.driver-information summary {
+  cursor: pointer;
+  color: var(--ge-gold);
+}
+
+.driver-map-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ge-border);
+  border-radius: 20px;
+  background: #0c1926;
+}
+
+.driver-map-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 16px;
+  color: var(--ge-muted);
+  font-size: 12px;
+}
+
+.driver-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.driver-status-dot-active {
+  background: #6ee7b7;
+}
+
+.driver-map-frame {
+  position: relative;
+}
+
+.driver-map-canvas {
+  width: 100%;
+  height: clamp(430px, 65dvh, 720px);
+  background: #152236;
+}
+
+.driver-locate-button {
+  position: absolute;
+  right: 14px;
+  bottom: 34px;
+  z-index: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--ge-border);
+  border-radius: 12px;
+  background: #101f2e;
+  color: var(--ge-text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.driver-locate-button > span {
+  color: var(--ge-blue);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.driver-map-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.driver-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.driver-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ge-muted);
+  font-size: 12px;
+}
+
+.driver-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-low {
+  background: #22c55e;
+}
+.legend-medium {
+  background: #f59e0b;
+}
+.legend-high {
+  background: #ef4444;
+}
+
+.driver-accuracy {
+  color: var(--ge-muted);
+  font-size: 11px;
+}
+
+.driver-message {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ge-border);
+  color: var(--ge-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .driver-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .driver-sidebar {
+    padding: 16px;
+  }
+
+  .driver-map-canvas {
+    height: clamp(350px, 55dvh, 560px);
+  }
+}
+
+@media (max-width: 600px) {
+  .driver-heading-note {
+    display: none;
+  }
+
+  .driver-heading {
+    margin-bottom: 16px;
+  }
+
+  .driver-sidebar-title {
+    margin-bottom: 16px;
+  }
+
+  .driver-locate-button {
+    right: 10px;
+    padding: 10px;
+    font-size: 12px;
+  }
+}
+
+/* Compact destination */
+.driver-sidebar .destination-compact {
+  padding: 0;
+}
+
+.destination-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.destination-pin {
+  flex: 0 0 auto;
+  font-size: 20px;
+}
+
+.destination-compact-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.destination-caption {
+  color: var(--ge-muted);
+  font-size: 11px;
+}
+
+.destination-compact-text strong {
+  overflow: hidden;
+  color: var(--ge-text);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.destination-change {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--ge-border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ge-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.destination-change:hover {
+  background: var(--ge-surface-raised);
+}
+
+.destination-address {
+  margin-top: 12px;
+  color: var(--ge-muted);
+  font-size: 12px;
+}
+
+.destination-address summary,
+.journey-route-information summary {
+  cursor: pointer;
+}
+
+.destination-address p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+/* Vehicle selection */
+.journey-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.vehicle-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vehicle-options legend {
+  margin-bottom: 10px;
+  color: var(--ge-muted);
+  font-size: 12px;
+}
+
+.vehicle-options label {
+  position: relative;
+  cursor: pointer;
+}
+
+.vehicle-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.vehicle-options label > span {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--ge-border);
+  border-radius: 10px;
+  background: #0c1926;
+  color: var(--ge-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.vehicle-options input:checked + span {
+  border-color: var(--ge-blue);
+  background: rgba(169, 226, 238, 0.1);
+  color: var(--ge-blue);
+}
+
+.vehicle-options input:focus-visible + span {
+  outline: 3px solid var(--ge-gold);
+  outline-offset: 3px;
+}
+
+.vehicle-options:disabled label {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Compact route summary */
+.journey-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.journey-summary-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.journey-summary-main strong {
+  color: var(--ge-text);
+  font-size: 24px;
+  letter-spacing: -0.5px;
+}
+
+.journey-summary-main > span {
+  color: var(--ge-muted);
+  font-size: 13px;
+}
+
+.journey-summary-main .journey-vehicle {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(169, 226, 238, 0.08);
+  color: var(--ge-blue);
+  font-size: 11px;
+}
+
+.journey-summary + .journey-settings {
+  margin-top: 16px;
+}
+
+.journey-route-information {
+  margin-top: 14px;
+  color: var(--ge-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.journey-route-information p {
+  margin: 8px 0;
+}
+
+/* Mobile: destination and route together, followed by the map */
+@media (max-width: 900px) {
+  .driver-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .driver-workspace > .driver-sidebar {
+    display: block;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--ge-border);
+    border-radius: 18px;
+    background: var(--ge-surface);
+  }
+
+  .driver-sidebar > .destination-search {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .driver-sidebar > .route-planner {
+    min-width: 0;
+    margin: 14px 0 0;
+    padding: 14px 0 0;
+    border: 0;
+    border-top: 1px solid var(--ge-border);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .driver-sidebar > .driver-empty-route {
+    margin: 12px 0 0;
+    padding: 0;
+  }
+
+  .driver-workspace > .driver-map-panel {
+    min-width: 0;
+  }
+
+  .driver-page .driver-heading {
+    margin-bottom: 12px;
+  }
+
+  .driver-heading h1 {
+    font-size: 24px;
+  }
+
+  .driver-map-canvas {
+    height: clamp(300px, 48dvh, 460px);
+  }
+
+  .journey-summary {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .journey-summary-main {
+    min-width: 0;
+    gap: 8px 10px;
+  }
+
+  .journey-summary-main strong {
+    font-size: 23px;
+  }
+
+  .driver-sidebar .destination-change {
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 10px 12px;
+    white-space: normal;
+    font-size: 12px;
+  }
+
+  .journey-settings {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .journey-settings > .button {
+    width: 100%;
+  }
+
+  .journey-settings > .section-note {
+    margin: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .journey-settings {
+    grid-template-columns: 1fr;
+  }
+}
+
+.route-hazard-icon {
+  background: transparent;
+  border: 0;
+}
+
+.route-hazard-marker {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 2px solid white;
+  border-radius: 50%;
+  color: #111827;
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.route-hazard-marker-near {
+  outline: 4px solid #f8ce76;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 9px rgba(248, 206, 118, 0.16);
+}
+
+.route-report-summary {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ge-border);
+}
+
+.route-report-summary strong {
+  color: var(--ge-text);
+  font-size: 14px;
+}
+
+.route-report-summary p {
+  margin: 8px 0;
+  color: var(--ge-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.route-report-summary small {
+  display: block;
+  color: var(--ge-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.driver-map-status {
+  flex-wrap: wrap;
+}
+
+.driver-route-location-note {
+  flex: 1 1 260px;
+  margin-left: auto;
+  color: var(--ge-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .driver-route-location-note {
+    flex-basis: 100%;
+    margin-left: 15px;
+    text-align: left;
+  }
+}
+
+/* Compact sound controls */
+.voice-toolbar {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ge-border);
+}
+
+.voice-toolbar-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.voice-mute-button,
+.voice-toolbar-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ge-border);
+  border-radius: 10px;
+  background: #0b1925;
+  color: var(--ge-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.voice-mute-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.voice-mute-button[aria-pressed="true"] {
+  color: #fda4af;
+}
+
+.voice-toolbar > p,
+.voice-unavailable {
+  margin: 0;
+  color: var(--ge-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.voice-toolbar button:focus-visible,
+.voice-toolbar select:focus-visible {
+  outline: 2px solid var(--ge-blue);
+  outline-offset: 3px;
+}
+
+/* Keep mobile driver controls compact and the map prominent. */
+@media (max-width: 900px) {
+  body.godeye-driver-screen .driver-heading,
+  body.godeye-driver-screen .site-footer {
+    display: none;
+  }
+
+  body.godeye-driver-screen .app-main > .driver-page {
+    padding-top: 12px;
+    padding-bottom: 16px;
+  }
+
+  body.godeye-driver-screen .app-header {
+    min-height: 64px;
+    gap: 8px;
+    padding-block: 8px;
+  }
+
+  body.godeye-driver-screen .app-header .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  body.godeye-driver-screen .auth-session > .auth-status {
+    display: none;
+  }
+
+  body.godeye-driver-screen .app-navigation a {
+    min-height: 44px;
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+
+  body.godeye-driver-screen .driver-workspace {
+    gap: 10px;
+  }
+
+  body.godeye-driver-screen .driver-workspace > .driver-sidebar {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  body.godeye-driver-screen .destination-full-address {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  body.godeye-driver-screen .driver-sidebar > .route-planner {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  body.godeye-driver-screen .route-report-summary {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  body.godeye-driver-screen .route-report-summary p {
+    margin: 5px 0 0;
+    line-height: 1.45;
+  }
+
+  body.godeye-driver-screen .driver-voice {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  body.godeye-driver-screen .driver-map-status {
+    min-height: 38px;
+    padding: 9px 12px;
+  }
+
+  body.godeye-driver-screen .driver-map-canvas {
+    height: clamp(320px, 52dvh, 640px);
+  }
+
+  body.godeye-driver-screen .driver-map-footer {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+}

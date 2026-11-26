@@ -32,6 +32,9 @@ from schemas import (
     ReportPhotoPreview,
     ReviewEventRead,
     UserRead,
+    RouteRequest,
+    RouteRead,
+    DestinationRead,
     RepairConfirmationRead,
 )
 from security import require_reviewer
@@ -62,6 +65,15 @@ from models import (
     RepairConfirmation,
 )
 
+from services.destination_search import (
+    DestinationSearchError,
+    search_destinations,
+)
+
+from services.routing import (
+    RoutingError,
+    calculate_route,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1127,3 +1139,73 @@ def confirm_report_repair(
                     report_id,
                     photo_id,
                 )
+
+
+@app.get(
+    "/api/navigation/destinations",
+    response_model=list[DestinationRead],
+)
+def find_destinations(
+    response: Response,
+    q: Annotated[
+        str,
+        Query(min_length=3, max_length=120),
+    ],
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        return search_destinations(q)
+
+    except DestinationSearchError as error:
+        error_statuses = {
+            "invalid_query": 422,
+            "not_configured": 503,
+            "timeout": 504,
+            "network_error": 503,
+            "rate_limited": 429,
+            "provider_access_error": 503,
+            "provider_error": 502,
+            "invalid_response": 502,
+        }
+
+        raise HTTPException(
+            status_code=error_statuses.get(error.code, 503),
+            detail={
+                "code": error.code,
+                "message": str(error),
+            },
+        ) from None
+
+@app.post(
+    "/api/navigation/route",
+    response_model=RouteRead,
+)
+def plan_driver_route(
+    payload: RouteRequest,
+    response: Response,
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        return calculate_route(payload)
+
+    except RoutingError as error:
+        error_statuses = {
+            "not_configured": 503,
+            "timeout": 504,
+            "network_error": 503,
+            "rate_limited": 429,
+            "provider_access_error": 503,
+            "provider_error": 502,
+            "invalid_response": 502,
+            "no_route": 404,
+        }
+
+        raise HTTPException(
+            status_code=error_statuses.get(error.code, 503),
+            detail={
+                "code": error.code,
+                "message": str(error),
+            },
+        ) from None
