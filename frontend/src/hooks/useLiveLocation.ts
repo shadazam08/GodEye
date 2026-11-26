@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { DeviceLocation } from "../components/CurrentLocation";
+import type { DeviceLocation } from "../types/location";
 
 export interface LivePosition extends DeviceLocation {
   speed: number | null;

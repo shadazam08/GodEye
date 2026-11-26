@@ -284,3 +284,76 @@ class RepairConfirmationRead(BaseModel):
     photo_id: UUID
     note: str
     created_at: datetime
+
+class DestinationRead(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        allow_inf_nan=False,
+    )
+
+    place_id: str = Field(min_length=1)
+    label: str = Field(min_length=1, max_length=1000)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class RoutePoint(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        allow_inf_nan=False,
+    )
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class RouteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: RoutePoint
+    destination: RoutePoint
+    mode: Literal["drive", "motorcycle"] = "drive"
+
+    @model_validator(mode="after")
+    def check_distinct_points(self) -> "RouteRequest":
+        if (
+            self.start.latitude == self.destination.latitude
+            and self.start.longitude == self.destination.longitude
+        ):
+            raise ValueError(
+                "Start and destination must be different."
+            )
+
+        return self
+
+
+class RouteGeometry(BaseModel):
+    model_config = ConfigDict(
+        extra="ignore",
+        allow_inf_nan=False,
+    )
+
+    type: Literal["MultiLineString"]
+
+    coordinates: Annotated[
+        list[
+            Annotated[
+                list[GeoJsonCoordinate],
+                Field(min_length=2, max_length=100000),
+            ]
+        ],
+        Field(min_length=1, max_length=100),
+    ]
+
+
+class RouteRead(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        allow_inf_nan=False,
+    )
+
+    mode: Literal["drive", "motorcycle"]
+    distance_m: float = Field(ge=0)
+    duration_s: float = Field(ge=0)
+    geometry: RouteGeometry
+    attribution: str
