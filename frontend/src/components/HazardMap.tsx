@@ -1,22 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { API_BASE_URL } from '../config'
-import type { ReportRead, Severity } from '../types/report'
-import CurrentLocation from './CurrentLocation'
-import type { DeviceLocation } from './CurrentLocation'
-import NearbyHazards from './NearbyHazards'
-import TrackingControls from './TrackingControls'
-import { useLiveLocation } from '../hooks/useLiveLocation'
-import ApproachAssessmentPanel from './ApproachAssessmentPanel'
-import { useTraceRecorder } from '../hooks/useTraceRecorder'
-import TraceRecorderControls from './TraceRecorderControls'
 
-import TraceMatchingPanel from './TraceMatchingPanel'
-import type {
-    LocationSample,
-    ProviderMatchResponse,
-} from '../types/mapMatching'
+import { API_BASE_URL } from '../config'
+import { useLiveLocation } from '../hooks/useLiveLocation'
+import type { ReportRead, Severity } from '../types/report'
 
 const severityColors: Record<Severity, string> = {
     low: '#22c55e',
@@ -25,52 +13,39 @@ const severityColors: Record<Severity, string> = {
 }
 
 function HazardMap() {
-    const mapContainerRef = useRef<HTMLDivElement>(null)
-    const hazardLayerRef = useRef<L.LayerGroup | null>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<L.Map | null>(null)
+    const hazardsLayerRef = useRef<L.LayerGroup | null>(null)
     const locationLayerRef = useRef<L.LayerGroup | null>(null)
+    const centeredRef = useRef(false)
 
-    const [tilesUnavailable, setTilesUnavailable] = useState(false)
-    const [loadState, setLoadState] = useState<
+    const [followLocation, setFollowLocation] = useState(true)
+    const [hazardsStatus, setHazardsStatus] = useState<
         'loading' | 'ready' | 'error'
     >('loading')
-    const [hazardCount, setHazardCount] = useState(0)
     const [refreshCount, setRefreshCount] = useState(0)
+    const [tilesUnavailable, setTilesUnavailable] = useState(false)
 
-    const [deviceLocation, setDeviceLocation] = useState<DeviceLocation | null>(null)
-
-    const [hazards, setHazards] = useState<ReportRead[]>([])
-
-    const trackingLayerRef = useRef<L.LayerGroup | null>(null)
-    const trackingCenteredRef = useRef(false)
-
-    const traceRecorder = useTraceRecorder()
-    const matchedTraceLayerRef = useRef<L.LayerGroup | null>(null)
-
+    // Receive the latest location without recording a journey.
     const {
-        position: livePosition,
-        status: trackingStatus,
-        error: trackingError,
-        start: startTracking,
-        stop: stopTracking,
-    } = useLiveLocation(
-        traceRecorder.recordReading,
-        traceRecorder.clearSamples,
-    )
+        position,
+        status,
+        error,
+        start,
+    } = useLiveLocation()
 
-    // Create the map once when the component mounts.
+    // Open the map with Darbhanga as the initial view.
     useEffect(() => {
-        const container = mapContainerRef.current
+        if (!containerRef.current) return
 
-        if (!container) {
-            return
-        }
+        const map = L.map(containerRef.current).setView(
+            [26.1542, 85.8918],
+            13,
+        )
 
-        const map = L.map(container).setView([28.6139, 77.209], 13)
         mapRef.current = map
+        hazardsLayerRef.current = L.layerGroup().addTo(map)
         locationLayerRef.current = L.layerGroup().addTo(map)
-        trackingLayerRef.current = L.layerGroup().addTo(map)
-        matchedTraceLayerRef.current = L.layerGroup().addTo(map)
 
         const tiles = L.tileLayer(
             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -81,79 +56,122 @@ function HazardMap() {
             },
         )
 
-        const handleTileError = () => {
+        function handleTileError() {
             setTilesUnavailable(true)
+        }
+
+        function handleMapDrag() {
+            // Let the user explore without snapping back immediately.
+            setFollowLocation(false)
         }
 
         tiles.on('tileerror', handleTileError)
         tiles.addTo(map)
+        map.on('dragstart', handleMapDrag)
 
-        const hazardLayer = L.layerGroup().addTo(map)
-        hazardLayerRef.current = hazardLayer
-
-        const resizeObserver = new ResizeObserver(() => {
+        const observer = new ResizeObserver(() => {
             map.invalidateSize()
         })
 
-        resizeObserver.observe(container)
+        observer.observe(containerRef.current)
 
         return () => {
-            resizeObserver.disconnect()
+            observer.disconnect()
             tiles.off('tileerror', handleTileError)
-            hazardLayerRef.current = null
-            locationLayerRef.current = null
-            mapRef.current = null
-            trackingLayerRef.current = null
-            trackingCenteredRef.current = false
-            matchedTraceLayerRef.current = null
+            map.off('dragstart', handleMapDrag)
             map.remove()
+
+            mapRef.current = null
+            hazardsLayerRef.current = null
+            locationLayerRef.current = null
+            centeredRef.current = false
         }
     }, [])
 
-    // Fetch verified reports on initial load and on refresh.
+    // Request location automatically when the map opens.
+    // Resume automatically when the user returns to this tab.
     useEffect(() => {
+        let timer: number | undefined
+
+        function requestLocation() {
+            if (timer !== undefined) {
+                window.clearTimeout(timer)
+            }
+
+            if (!document.hidden) {
+                timer = window.setTimeout(() => {
+                    start()
+                }, 0)
+            }
+        }
+
+        requestLocation()
+
+        document.addEventListener(
+            'visibilitychange',
+            requestLocation,
+        )
+
+        return () => {
+            if (timer !== undefined) {
+                window.clearTimeout(timer)
+            }
+
+            document.removeEventListener(
+                'visibilitychange',
+                requestLocation,
+            )
+        }
+    }, [start])
+
+    // Load verified road damage independently of location permission.
+    useEffect(() => {
+        const layer = hazardsLayerRef.current
+
+        if (!layer) return
+
         const controller = new AbortController()
         let active = true
 
-        const hazardLayer = hazardLayerRef.current
-
-        if (!hazardLayer) {
-            return
-        }
-
         const timeout = window.setTimeout(() => {
             controller.abort()
-        }, 15000)
+        }, 15_000)
 
         async function loadHazards() {
-            setLoadState('loading')
-            setHazardCount(0)
-            setHazards([])
-            hazardLayer!.clearLayers()
+            setHazardsStatus('loading')
 
             try {
                 const response = await fetch(
                     `${API_BASE_URL}/api/hazards?limit=200&offset=0`,
-                    { signal: controller.signal },
+                    {
+                        signal: controller.signal,
+                        cache: 'no-store',
+                    },
                 )
 
                 if (!response.ok) {
-                    throw new Error('Could not load hazards.')
+                    throw new Error('Could not load road damage.')
                 }
 
                 const reports: ReportRead[] = await response.json()
 
                 if (!Array.isArray(reports)) {
-                    throw new Error('Unexpected hazard response.')
+                    throw new Error('Unexpected response.')
                 }
 
-                if (!active) {
-                    return
-                }
+                if (!active) return
+
+                layer!.clearLayers()
 
                 for (const report of reports) {
-                    // Defensive check: only verified records become markers.
-                    if (report.status !== 'verified') {
+                    if (
+                        report.status !== 'verified' ||
+                        !Number.isFinite(report.latitude) ||
+                        !Number.isFinite(report.longitude) ||
+                        Math.abs(report.latitude) > 90 ||
+                        Math.abs(report.longitude) > 180 ||
+                        !Object.hasOwn(severityColors, report.severity)
+                    ) {
                         continue
                     }
 
@@ -162,38 +180,53 @@ function HazardMap() {
                     const title = document.createElement('strong')
                     title.textContent = report.title
 
+                    const description = document.createElement('p')
+                    description.textContent = report.description
+
                     const details = document.createElement('p')
                     details.textContent =
-                        `${report.location_name} — ` +
-                        `Reported severity: ${report.severity}. ` +
-                        'Status: verified.'
+                        `${report.location_name} · ` +
+                        `Reported severity: ${report.severity}`
 
-                    popup.append(title, details)
+                    popup.append(title, description, details)
 
-                    L.circleMarker(
+                    const icon = L.divIcon({
+                        className: '',
+                        html: `
+              <div style="
+                width:32px;
+                height:32px;
+                display:grid;
+                place-items:center;
+                border:2px solid white;
+                border-radius:50%;
+                background:${severityColors[report.severity]};
+                color:#111827;
+                font-size:23px;
+                font-weight:900;
+              ">!</div>
+            `,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                    })
+
+                    L.marker(
                         [report.latitude, report.longitude],
                         {
-                            radius: 9,
-                            color: '#ffffff',
-                            weight: 2,
-                            fillColor: severityColors[report.severity],
-                            fillOpacity: 0.9,
+                            icon,
+                            title: 'Verified road damage',
+                            alt: 'Verified road damage',
                         },
                     )
                         .bindPopup(popup)
-                        .addTo(hazardLayer!)
+                        .addTo(layer!)
                 }
-                setHazards(
-                    reports.filter((report) => report.status === 'verified'),
-                )
-                setHazardCount(hazardLayer!.getLayers().length)
-                setLoadState('ready')
+
+                setHazardsStatus('ready')
             } catch {
                 if (active) {
-                    hazardLayer!.clearLayers()
-                    setHazards([])
-                    setHazardCount(0)
-                    setLoadState('error')
+                    layer!.clearLayers()
+                    setHazardsStatus('error')
                 }
             } finally {
                 window.clearTimeout(timeout)
@@ -204,245 +237,116 @@ function HazardMap() {
 
         return () => {
             active = false
-            window.clearTimeout(timeout)
             controller.abort()
+            window.clearTimeout(timeout)
         }
     }, [refreshCount])
 
-    function handleLocate(location: DeviceLocation) {
+    // Replace the previous location marker with the latest reading.
+    useEffect(() => {
         const map = mapRef.current
-        const locationLayer = locationLayerRef.current
+        const layer = locationLayerRef.current
 
-        if (!map || !locationLayer) {
-            return
-        }
-        setDeviceLocation(location)
-        locationLayer.clearLayers()
+        if (!map || !layer) return
 
-        const position: L.LatLngTuple = [
-            location.latitude,
-            location.longitude,
+        layer.clearLayers()
+
+        if (!position) return
+
+        const coordinates: L.LatLngTuple = [
+            position.latitude,
+            position.longitude,
         ]
 
-        const accuracyCircle = L.circle(position, {
-            radius: location.accuracy,
+        L.circle(coordinates, {
+            radius: position.accuracy,
             color: '#2563eb',
             weight: 1,
             fillColor: '#3b82f6',
             fillOpacity: 0.12,
             interactive: false,
-        }).addTo(locationLayer)
+        }).addTo(layer)
 
-        L.circleMarker(position, {
-            radius: 8,
+        L.circleMarker(coordinates, {
+            radius: 10,
             color: '#ffffff',
             weight: 3,
             fillColor: '#2563eb',
             fillOpacity: 1,
         })
-            .bindPopup('Your device location — a one-time reading.')
-            .addTo(locationLayer)
+            .bindPopup('Your latest device location')
+            .addTo(layer)
 
-        map.fitBounds(accuracyCircle.getBounds(), {
-            padding: [24, 24],
-            maxZoom: 16,
-        })
-    }
-
-    useEffect(() => {
-        const map = mapRef.current
-        const trackingLayer = trackingLayerRef.current
-
-        if (!map || !trackingLayer) {
-            return
+        if (!centeredRef.current) {
+            map.setView(coordinates, 16)
+            centeredRef.current = true
+        } else if (followLocation) {
+            map.panTo(coordinates, { animate: false })
         }
-
-        trackingLayer.clearLayers()
-
-        if (!livePosition) {
-            trackingCenteredRef.current = false
-            matchedTraceLayerRef.current?.clearLayers()
-            return
-        }
-
-        const position: L.LatLngTuple = [
-            livePosition.latitude,
-            livePosition.longitude,
-        ]
-
-        const accuracyCircle = L.circle(position, {
-            radius: livePosition.accuracy,
-            color: '#a78bfa',
-            weight: 1,
-            dashArray: '5 5',
-            fillColor: '#a78bfa',
-            fillOpacity: 0.12,
-            interactive: false,
-        }).addTo(trackingLayer)
-
-        const readingTime = new Date(
-            livePosition.timestamp,
-        ).toLocaleTimeString()
-
-        L.circleMarker(position, {
-            radius: 9,
-            color: '#ffffff',
-            weight: 3,
-            fillColor: '#7c3aed',
-            fillOpacity: 1,
-        })
-            .bindPopup(`Latest tracked location reading: ${readingTime}`)
-            .addTo(trackingLayer)
-
-        // Center on the first reading; allow manual exploration afterward.
-        if (!trackingCenteredRef.current) {
-            map.fitBounds(accuracyCircle.getBounds(), {
-                padding: [24, 24],
-                maxZoom: 16,
-            })
-
-            trackingCenteredRef.current = true
-        }
-    }, [livePosition])
-
-    function handleStartTracking() {
-        // Remove the earlier snapshot before starting a tracked session.
-        locationLayerRef.current?.clearLayers()
-        setDeviceLocation(null)
-
-        startTracking()
-    }
-    function handleMatchedTrace(
-        result: ProviderMatchResponse,
-        sourceSamples: LocationSample[],
-    ) {
-        const map = mapRef.current
-        const resultLayer = matchedTraceLayerRef.current
-
-        if (!map || !resultLayer) {
-            return
-        }
-
-        resultLayer.clearLayers()
-
-        const bounds = L.latLngBounds([])
-
-        for (const sample of sourceSamples) {
-            const position: L.LatLngTuple = [
-                sample.latitude,
-                sample.longitude,
-            ]
-
-            L.circleMarker(position, {
-                radius: 4,
-                color: '#475569',
-                weight: 1,
-                fillColor: '#cbd5e1',
-                fillOpacity: 0.8,
-            })
-                .bindPopup('Recorded input point; not a confirmed road position.')
-                .addTo(resultLayer)
-
-            bounds.extend(position)
-        }
-
-        for (const feature of result.features) {
-            for (const line of feature.geometry.coordinates) {
-                const positions: L.LatLngTuple[] = line.map(
-                    ([longitude, latitude]) => [latitude, longitude],
-                )
-
-                L.polyline(positions, {
-                    color: '#f97316',
-                    weight: 5,
-                    opacity: 0.85,
-                })
-                    .bindPopup(
-                        'Provider-matched past trace. Not a planned route or confirmed hazard approach.',
-                    )
-                    .addTo(resultLayer)
-
-                for (const position of positions) {
-                    bounds.extend(position)
-                }
-            }
-        }
-
-        if (bounds.isValid()) {
-            map.fitBounds(bounds, {
-                padding: [30, 30],
-                maxZoom: 17,
-            })
-        }
-    }
-
-    function handleStartRecording() {
-        matchedTraceLayerRef.current?.clearLayers()
-        traceRecorder.startRecording()
-    }
-
-    function handleClearRecording() {
-        matchedTraceLayerRef.current?.clearLayers()
-        traceRecorder.clearSamples()
-    }
+    }, [position, followLocation])
 
     return (
         <section
             className="section-container content-section"
-            id="hazard-map"
-            aria-labelledby="hazard-map-title"
+            aria-labelledby="driver-map-title"
         >
-            <span className="eyebrow">EXPLORE THE ROAD NETWORK</span>
+            <h1 className="section-title" id="driver-map-title">
+                Road map
+            </h1>
 
-            <h2 className="section-title" id="hazard-map-title">
-                Road hazard map
-            </h2>
-
-            <p className="section-note">
-                The initial view shows Delhi, not your current location.
-                Only reviewer-verified reports are shown.
-            </p>
-
-            <TrackingControls
-                position={livePosition}
-                status={trackingStatus}
-                error={trackingError}
-                onStart={handleStartTracking}
-                onStop={stopTracking}
-            />
-
-            {trackingStatus === 'tracking' && (
-                <TraceRecorderControls
-                    sampleCount={traceRecorder.samples.length}
-                    maxSamples={traceRecorder.maxSamples}
-                    isRecording={traceRecorder.isRecording}
-                    onStart={handleStartRecording}
-                    onStop={traceRecorder.stopRecording}
-                    onClear={handleClearRecording}
-                />
-            )}
-
-            {trackingStatus === 'tracking' && (
-                <TraceMatchingPanel
-                    samples={traceRecorder.samples}
-                    isRecording={traceRecorder.isRecording}
-                    onMatched={handleMatchedTrace}
-                />
-            )}
-
-            {trackingStatus !== 'requesting' &&
-                trackingStatus !== 'tracking' && (
-                    <CurrentLocation onLocate={handleLocate} />
+            <div role="status" aria-live="polite">
+                {(status === 'idle' || status === 'requesting') && (
+                    <p className="section-note">
+                        Finding your location. Allow location access if
+                        your browser asks.
+                    </p>
                 )}
 
+                {status === 'tracking' && position && (
+                    <p className="section-note">
+                        Location updates are on.
+                        {' '}
+                        Last reading:{' '}
+                        {new Date(position.timestamp).toLocaleTimeString()}
+                        {' · '}
+                        Estimated accuracy: {Math.round(position.accuracy)} m
+                    </p>
+                )}
+
+                {status === 'stopped' && (
+                    <p className="section-note">
+                        Location updates are paused.
+                    </p>
+                )}
+            </div>
+
+            {status === 'error' && (
+                <div className="form-message" role="alert">
+                    <p>{error}</p>
+
+                    <p>
+                        If location is blocked, allow it in your browser
+                        site settings.
+                    </p>
+
+                    <button
+                        className="button button-primary"
+                        type="button"
+                        onClick={start}
+                    >
+                        Try location again
+                    </button>
+                </div>
+            )}
+
             <div
-                ref={mapContainerRef}
+                ref={containerRef}
                 role="region"
-                aria-label="Interactive road hazard map"
+                aria-label="Road damage map and your location"
                 style={{
-                    height: '420px',
+                    height: 'clamp(350px, 62dvh, 700px)',
                     width: '100%',
-                    marginTop: '24px',
+                    marginTop: '16px',
                     border: '1px solid #334155',
                     borderRadius: '16px',
                     overflow: 'hidden',
@@ -450,77 +354,55 @@ function HazardMap() {
                 }}
             />
 
+            {position && !followLocation && (
+                <button
+                    className="button button-primary"
+                    type="button"
+                    style={{ marginTop: '12px' }}
+                    onClick={() => setFollowLocation(true)}
+                >
+                    Follow my location
+                </button>
+            )}
+
             <p className="section-note">
-                Gray dots = submitted input points.
-                Orange lines = provider-matched past trace.
-                Inspect the result for incorrect snapping, parallel roads,
-                and incomplete matches.
+                🔵 Your location
+                {' · '}
+                🟢 Low severity
+                {' · '}
+                🟠 Medium severity
+                {' · '}
+                🔴 High severity
             </p>
 
-            <div role="status" aria-live="polite">
-                {loadState === 'loading' && (
-                    <p className="section-note">Loading verified hazards…</p>
-                )}
-
-                {loadState === 'ready' && (
-                    <p className="section-note">
-                        {hazardCount === 0
-                            ? 'No verified hazard records are currently available.'
-                            : `${hazardCount} verified hazard records loaded. Pan and zoom to explore.`}
-                    </p>
-                )}
-
-                {loadState === 'error' && (
-                    <p className="section-note">
-                        Hazard data could not be loaded. Check your connection
-                        and backend server, then refresh hazards.
-                    </p>
-                )}
-            </div>
-
-            {tilesUnavailable && (
+            {hazardsStatus === 'loading' && (
                 <p className="section-note" role="status">
-                    Some map tiles could not load. Check your internet connection
-                    and reload the page to retry.
+                    Loading verified road damage…
                 </p>
             )}
 
-            <button
-                className="button button-secondary"
-                type="button"
-                disabled={loadState === 'loading'}
-                onClick={() => setRefreshCount((count) => count + 1)}
-                style={{ marginTop: '16px' }}
-            >
-                {loadState === 'loading' ? 'Loading…' : 'Refresh hazards'}
-            </button>
+            {hazardsStatus === 'error' && (
+                <div role="alert">
+                    <p>Road damage information could not be loaded.</p>
 
+                    <button
+                        className="button button-secondary"
+                        type="button"
+                        onClick={() => setRefreshCount((count) => count + 1)}
+                    >
+                        Retry loading road damage
+                    </button>
+                </div>
+            )}
+
+            {tilesUnavailable && (
+                <p className="section-note" role="status">
+                    Some map tiles could not load. Check your connection.
+                </p>
+            )}
             <p className="section-note">
-                This view loads up to 200 latest verified records.
-                Missing records do not mean a road is safe.
-                New or repaired hazards may not yet be reflected.
+                Road damage reports may be incomplete.
             </p>
-            <NearbyHazards
-                location={
-                    trackingStatus === 'requesting' ||
-                        trackingStatus === 'tracking'
-                        ? livePosition
-                        : deviceLocation
-                }
-                hazards={hazards}
-                loadState={loadState}
-                mode={
-                    trackingStatus === 'requesting' ||
-                        trackingStatus === 'tracking'
-                        ? 'tracking'
-                        : 'snapshot'
-                }
-            />
-            <ApproachAssessmentPanel
-                position={livePosition}
-                hazards={hazards}
-                loadState={loadState}
-            />
         </section>
     )
 }

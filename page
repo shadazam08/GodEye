@@ -2,3 +2,8 @@ https://myprojects.geoapify.com/api/mK1yUlzUD8lNjdEi2vaN/statistics
 
 
 .\.venv\Scripts\python.exe -m uvicorn main:app --reload
+
+
+py -m pip install --upgrade pip
+py -m pip install uvicorn fastapi
+py -m uvicorn main:app --reload

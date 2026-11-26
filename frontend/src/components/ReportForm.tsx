@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 // import { API_BASE_URL } from '../config'
 import LocationPicker from './LocationPicker'
 import { submitReport } from '../api/reports'
 import { useAuth } from '../hooks/useAuth'
 import AuthControls from './AuthControls'
+import CameraCapture from './CameraCapture'
 
 import type { ReportCreate, ReportRead } from '../types/report'
 
@@ -16,6 +17,55 @@ function ReportForm() {
     const [savedReport, setSavedReport] = useState<ReportRead | null>(null)
     const [latitude, setLatitude] = useState('')
     const [longitude, setLongitude] = useState('')
+
+    const [photo, setPhoto] = useState<File | null>(null)
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+
+    const photoPreviewRef = useRef<string | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (photoPreviewRef.current) {
+                URL.revokeObjectURL(photoPreviewRef.current)
+            }
+        }
+    }, [])
+
+    function clearPhoto() {
+        if (photoPreviewRef.current) {
+            URL.revokeObjectURL(photoPreviewRef.current)
+            photoPreviewRef.current = null
+        }
+
+        setPhoto(null)
+        setPhotoPreview(null)
+    }
+
+    function selectPhoto(file: File | undefined) {
+        if (!file || submittingRef.current) {
+            return
+        }
+
+        setError('')
+        setSavedReport(null)
+        clearPhoto()
+
+        if (!['image/jpeg', 'image/png'].includes(file.type)) {
+            setError('Please select a JPEG or PNG photo.')
+            return
+        }
+
+        if (file.size === 0 || file.size > 3 * 1024 * 1024) {
+            setError('Please select a non-empty photo of 3 MiB or smaller.')
+            return
+        }
+
+        const preview = URL.createObjectURL(file)
+
+        photoPreviewRef.current = preview
+        setPhoto(file)
+        setPhotoPreview(preview)
+    }
 
     const parsedLatitude =
         latitude.trim() === '' ? Number.NaN : Number(latitude)
@@ -52,6 +102,11 @@ function ReportForm() {
 
         setError('')
         setSavedReport(null)
+
+        if (!photo) {
+            setError('Please add a photo of the road damage before submitting.')
+            return
+        }
 
         const severity = formData.get('severity')
 
@@ -109,12 +164,13 @@ function ReportForm() {
         setIsSubmitting(true)
 
         try {
-            const report = await submitReport(payload)
+            const report = await submitReport(payload, photo)
 
             setSavedReport(report)
             form.reset()
             setLatitude('')
             setLongitude('')
+            clearPhoto()
         } catch (caughtError) {
             setError(
                 caughtError instanceof Error
@@ -169,6 +225,40 @@ function ReportForm() {
             >
                 <fieldset disabled={isSubmitting || authLoading || !user}>
                     <legend>Pothole details</legend>
+
+                    <div className="report-photo-selection">
+                        <h3>1. Take a photo — required</h3>
+
+                        <p className="section-note">
+                            Stop in a safe place, then photograph the road damage.
+                        </p>
+
+                        {!photo && (
+                            <CameraCapture onCapture={selectPhoto} />
+                        )}
+
+                        {photoPreview && (
+                            <div>
+                                <img
+                                    className="report-photo-image"
+                                    src={photoPreview}
+                                    alt="Captured road damage before submission"
+                                />
+
+                                <p className="section-note">
+                                    Photo ready. It will upload when you submit the report.
+                                </p>
+
+                                <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={clearPhoto}
+                                >
+                                    Retake photo
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div className="form-field">
                         <label htmlFor="report-title">Report title</label>
@@ -273,7 +363,9 @@ function ReportForm() {
                         type="submit"
                         disabled={isSubmitting}
                     >
-                        {isSubmitting ? 'Submitting…' : 'Submit report'}
+                        {isSubmitting
+                            ? 'Uploading photo and submitting…'
+                            : 'Submit report with photo'}
                     </button>
                 </fieldset>
             </form>
@@ -290,6 +382,10 @@ function ReportForm() {
                     role="status"
                 >
                     <h3>Report submitted</h3>
+                    <p>
+                        Your report and photo have been saved.
+                        The report is waiting for review.
+                    </p>
                     <p>{savedReport.title}</p>
                     <p>Reference: {savedReport.id}</p>
                     <p>Status: {savedReport.status}. Awaiting review.</p>

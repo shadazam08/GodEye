@@ -1,0 +1,347 @@
+:root {
+  --ge-background: #09131f;
+  --ge-surface: #132333;
+  --ge-surface-raised: #192e40;
+  --ge-border: #314758;
+  --ge-text: #edf4f8;
+  --ge-muted: #afbfcd;
+  --ge-blue: #a9e2ee;
+  --ge-gold: #e7be83;
+
+  color-scheme: dark;
+  color: var(--ge-text);
+  background: var(--ge-background);
+}
+
+body {
+  background: var(--ge-background);
+}
+
+.website {
+  color: var(--ge-text);
+  background: radial-gradient(ellipse at top right, rgba(169, 226, 238, 0.06), transparent 40%), var(--ge-background);
+}
+
+.app-header {
+  min-height: 88px;
+  border-bottom-color: var(--ge-border);
+}
+
+.website .brand {
+  gap: 10px;
+  letter-spacing: -0.8px;
+  color: var(--ge-text);
+}
+
+.brand-logo {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.brand-highlight {
+  color: var(--ge-blue);
+}
+
+.app-navigation a {
+  min-height: 48px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  color: var(--ge-muted);
+}
+
+.app-navigation a:hover {
+  color: var(--ge-text);
+  background: var(--ge-surface);
+}
+
+.app-navigation a.active {
+  color: var(--ge-blue);
+  border-color: #648f9d;
+  background: rgba(169, 226, 238, 0.09);
+}
+
+.app-main > .content-section {
+  padding-top: 36px;
+  padding-bottom: 48px;
+}
+
+.section-title {
+  margin-bottom: 28px;
+  color: var(--ge-text);
+  font-size: clamp(28px, 3vw, 40px);
+  letter-spacing: -1.2px;
+}
+
+.eyebrow {
+  color: var(--ge-gold);
+}
+
+.section-note,
+.my-report-meta,
+.my-report-title,
+.my-report-update,
+.auth-status {
+  color: var(--ge-muted);
+}
+
+.website .button {
+  min-height: 46px;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 11px;
+  box-shadow: none;
+}
+
+.website .button:hover {
+  transform: none;
+}
+
+.website .button-primary,
+.website .button-small {
+  border-color: var(--ge-blue);
+  background: var(--ge-blue);
+  color: #10212d;
+}
+
+.website .button-primary:hover,
+.website .button-small:hover {
+  border-color: #d3f3f8;
+  background: #d3f3f8;
+}
+
+.website .button-secondary {
+  border-color: var(--ge-border);
+  background: #10202e;
+  color: var(--ge-text);
+}
+
+.website .button-secondary:hover {
+  border-color: #7896a7;
+  background: var(--ge-surface-raised);
+}
+
+.website button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.website :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--ge-gold);
+  outline-offset: 4px;
+}
+
+.info-card,
+.my-report-card,
+.report-form,
+.tracking-panel,
+.live-location-bar,
+.report-photo-selection {
+  border-color: var(--ge-border);
+  background: var(--ge-surface);
+}
+
+.info-card,
+.my-report-card,
+.report-form {
+  border-radius: 18px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+}
+
+.info-card p,
+.mission-panel p,
+.my-report-details p {
+  color: var(--ge-muted);
+}
+
+.form-field :is(input, textarea, select) {
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--ge-border);
+  border-radius: 10px;
+  background: #0c1926;
+  color: var(--ge-text);
+}
+
+.form-field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.form-field :is(input, textarea)::placeholder {
+  color: #91a6b7;
+  opacity: 1;
+}
+
+.reviewer-list {
+  align-items: start;
+  gap: 24px;
+}
+
+.my-report-content {
+  gap: 14px;
+  padding: 24px;
+}
+
+.my-report-location {
+  font-size: 21px;
+  line-height: 1.4;
+}
+
+.my-report-details {
+  border-color: var(--ge-border);
+}
+
+.my-report-details summary {
+  color: var(--ge-blue);
+}
+
+.report-photo-open,
+.report-photo-placeholder {
+  background: #0b1723;
+}
+
+.report-photo-open img {
+  height: 250px;
+  object-fit: contain;
+}
+
+.report-photo-placeholder {
+  min-height: 250px;
+  color: var(--ge-muted);
+}
+
+.report-photo-dialog {
+  border-color: var(--ge-border);
+  background: var(--ge-background);
+}
+
+.report-status-pending {
+  color: #f1cf98;
+  background: rgba(231, 190, 131, 0.08);
+}
+
+.report-status-verified {
+  color: var(--ge-blue);
+  background: rgba(169, 226, 238, 0.08);
+}
+
+.report-status-rejected {
+  color: #ffb3bf;
+  background: rgba(255, 179, 191, 0.07);
+}
+
+.admin-mine-filter input {
+  accent-color: var(--ge-blue);
+}
+
+.admin-history-list li {
+  border-left-color: var(--ge-gold);
+  background: #0c1926;
+}
+
+.site-footer {
+  gap: 20px;
+  flex-wrap: wrap;
+  border-top-color: var(--ge-border);
+  color: var(--ge-muted);
+}
+
+::selection {
+  color: #09131f;
+  background: var(--ge-gold);
+}
+
+@media (max-width: 720px) {
+  .app-header {
+    width: calc(100% - 24px);
+    gap: 12px;
+  }
+
+  .brand-logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .app-header .auth-controls {
+    order: 0;
+    width: auto;
+    margin-left: auto;
+  }
+
+  .app-navigation {
+    order: 3;
+    width: 100%;
+  }
+
+  .app-navigation a {
+    padding: 10px 6px;
+    font-size: 13px;
+  }
+
+  .app-main > .content-section {
+    padding-top: 24px;
+  }
+
+  .reviewer-list {
+    grid-template-columns: 1fr;
+  }
+
+  .my-report-content {
+    padding: 18px;
+  }
+
+  .report-photo-open img,
+  .report-photo-placeholder {
+    height: 220px;
+    min-height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .website *,
+  .website *::before,
+  .website *::after {
+    transition: none;
+  }
+}
+
+.repair-confirmation-panel {
+  padding: 18px;
+  border: 1px solid var(--ge-border);
+  border-radius: 12px;
+  background: #0c1926;
+}
+
+.repair-confirmation-panel > summary {
+  color: var(--ge-gold);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.repair-confirmation-panel fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.repair-inspection-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ge-muted);
+  line-height: 1.6;
+}
+
+.repair-inspection-check input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  accent-color: var(--ge-blue);
+}

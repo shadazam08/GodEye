@@ -65,6 +65,7 @@ class ReportRead(BaseModel):
     severity: Literal["low", "medium", "high"]
     status: Literal["pending", "verified", "rejected"]
     created_at: datetime
+    repaired_at: datetime | None = None
 
 
 class ReportReview(BaseModel):
@@ -87,11 +88,13 @@ class ReviewEventRead(BaseModel):
 
     id: UUID
     report_id: UUID
+    reviewer_uid: str | None = None
     previous_status: Literal["pending", "verified", "rejected"]
     new_status: Literal["verified", "rejected"]
     reviewer_label: str
     reason: str
     created_at: datetime
+
 
 class LocationSample(BaseModel):
     model_config = ConfigDict(
@@ -139,6 +142,7 @@ class MapMatchRequest(BaseModel):
                 )
 
         return self
+
 
 # GeoJSON uses longitude first, then latitude.
 GeoJsonCoordinate = tuple[
@@ -244,9 +248,39 @@ class ProviderMatchResponse(MatchingResponseBase):
     type: Literal["FeatureCollection"]
     features: list[MatchedRouteFeature]
 
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     uid: str
     email: str | None
     email_verified: bool
     name: str | None
+    role: Literal["user", "admin"]
+
+
+class ReportPhotoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    report_id: UUID
+    width: int
+    height: int
+    byte_size: int
+    created_at: datetime
+
+
+class ReportPhotoPreview(BaseModel):
+    photo_id: UUID
+    url: str
+    expires_at: int
+
+
+class RepairConfirmationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    report_id: UUID
+    photo_id: UUID
+    note: str
+    created_at: datetime

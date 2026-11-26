@@ -1,26 +1,40 @@
+import { Link, NavLink } from 'react-router'
 import AuthControls from './AuthControls'
 
 function Header() {
   return (
-    <header className="site-header">
-      <a className="brand" href="#home" aria-label="GodEye home">
-        <span className="brand-icon" aria-hidden="true">
-          ◉
+    <header className="site-header app-header">
+      <Link className="brand" to="/" aria-label="GodEye home">
+        <img
+          className="brand-logo"
+          src="/brand/logo-transparent-512.webp"
+          alt=""
+          width={52}
+          height={52}
+        />
+
+        <span>
+          God<span className="brand-highlight">Eye</span>
         </span>
+      </Link>
 
-        God<span className="brand-highlight">Eye</span>
-      </a>
+      <nav
+        className="app-navigation"
+        aria-label="Main navigation"
+      >
+        <NavLink to="/" end>
+          Map
+        </NavLink>
 
-      <nav className="navigation" aria-label="Main navigation">
-        <a href="#how-it-works">How it works</a>
-        <a href="#features">Features</a>
-        <a href="#hazard-map">Hazard map</a>
-        <a href="#project">Our mission</a>
+        <NavLink to="/report">
+          Report damage
+        </NavLink>
+
+        <NavLink to="/my-reports">
+          My Reports
+        </NavLink>
       </nav>
 
-      <a className="button button-small" href="#report-pothole">
-        Report a pothole <span aria-hidden="true">↗</span>
-      </a>
       <AuthControls />
     </header>
   )

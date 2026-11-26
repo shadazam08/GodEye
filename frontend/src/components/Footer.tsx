@@ -1,13 +1,25 @@
+import { Link } from 'react-router'
+
 function Footer() {
   return (
     <footer className="site-footer">
-      <a className="brand" href="#home" aria-label="GodEye home">
-        God<span className="brand-highlight">Eye</span>
-      </a>
+      <Link className="brand" to="/" aria-label="GodEye home">
+        <img
+          className="brand-logo"
+          src="/brand/logo-transparent-512.webp"
+          alt=""
+          width={40}
+          height={40}
+        />
 
-      <p>Know the road ahead.</p>
+        <span>
+          God<span className="brand-highlight">Eye</span>
+        </span>
+      </Link>
 
-      <a href="#reviewer-panel">Reviewer access →</a>
+      <Link to="/about">About GodEye</Link>
+
+      <Link to="/admin">Admin dashboard</Link>
     </footer>
   )
 }

@@ -7,6 +7,7 @@ certifi==2026.11.20
 cffi==2.1.1
 charset-normalizer==3.5.3
 click==8.5.1
+cloudinary==1.47.0
 cryptography==50.0.2
 fastapi==0.165.0
 google-auth==2.63.1
@@ -18,6 +19,7 @@ Mako==1.4.3
 MarkupSafe==3.0.4
 msgpack==1.2.4
 opentelemetry-api==1.45.2
+pillow==13.0.0
 psycopg==3.3.9
 psycopg-binary==3.3.9
 pyasn1==0.6.5
@@ -26,7 +28,9 @@ pycparser==3.12
 pydantic==2.14.4
 pydantic_core==2.50.5
 python-dotenv==1.2.4
+python-multipart==0.0.34
 requests==2.34.2
+six==1.17.0
 SQLAlchemy==2.1.9
 starlette==1.10.0
 typing-inspection==0.4.5

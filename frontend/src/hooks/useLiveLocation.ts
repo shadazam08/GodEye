@@ -13,6 +13,9 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
   const watchIdRef = useRef<number | null>(null);
   const sessionRef = useRef(0);
 
+  // A manual stop prevents automatic resume in this mounted session.
+  const locationEnabledRef = useRef(true);
+
   const onReadingRef = useRef(onReading);
   const onSessionResetRef = useRef(onSessionReset);
 
@@ -35,6 +38,8 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
   }, []);
 
   const stop = useCallback(() => {
+    locationEnabledRef.current = false;
+
     clearWatch();
     onSessionResetRef.current?.();
 
@@ -44,6 +49,8 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
   }, [clearWatch]);
 
   const start = useCallback(() => {
+    locationEnabledRef.current = true;
+
     clearWatch();
     onSessionResetRef.current?.();
 
@@ -51,23 +58,24 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
     setError("");
 
     if (!window.isSecureContext || !navigator.geolocation) {
+      locationEnabledRef.current = false;
       setStatus("error");
-      setError("Location tracking requires a supported browser and HTTPS or localhost.");
+      setError("Location requires a supported browser and HTTPS or localhost.");
       return;
     }
 
     if (document.hidden) {
-      setStatus("error");
-      setError("Keep this tab visible before starting tracking.");
+      setStatus("stopped");
       return;
     }
 
     const session = sessionRef.current;
+
     setStatus("requesting");
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (reading) => {
-        if (session !== sessionRef.current) {
+        if (session !== sessionRef.current || document.hidden) {
           return;
         }
 
@@ -91,6 +99,7 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
 
         setPosition(nextPosition);
         setStatus("tracking");
+        setError("");
 
         onReadingRef.current?.(nextPosition);
       },
@@ -99,28 +108,25 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
           return;
         }
 
-        clearWatch();
-        onSessionResetRef.current?.();
-
         setPosition(null);
         setStatus("error");
 
-        switch (locationError.code) {
-          case 1:
-            setError("Location permission was denied.");
-            break;
+        if (locationError.code === 1) {
+          // Do not repeatedly request a denied permission.
+          locationEnabledRef.current = false;
+          clearWatch();
+          onSessionResetRef.current?.();
 
-          case 2:
-            setError("Device location is currently unavailable.");
-            break;
-
-          case 3:
-            setError("Location lookup timed out. Start again to retry.");
-            break;
-
-          default:
-            setError("Location tracking failed. Start again to retry.");
+          setError("Location is blocked. Allow location in your browser's " + "site settings, then select Try again.");
+          return;
         }
+
+        // Keep the watch registered for temporary GPS failures.
+        setError(
+          locationError.code === 3
+            ? "Waiting for GPS. Check that device location is enabled."
+            : "Location is temporarily unavailable. Waiting for an update.",
+        );
       },
       {
         enableHighAccuracy: true,
@@ -131,20 +137,39 @@ export function useLiveLocation(onReading?: (reading: LivePosition) => void, onS
   }, [clearWatch]);
 
   useEffect(() => {
+    // Start automatically after the map screen mounts.
+    const startupTimer = window.setTimeout(() => {
+      if (locationEnabledRef.current && !document.hidden) {
+        start();
+      }
+    }, 0);
+
     function handleVisibilityChange() {
-      if (document.hidden && watchIdRef.current !== null) {
-        stop();
+      if (document.hidden) {
+        clearWatch();
+        onSessionResetRef.current?.();
+
+        setPosition(null);
+        setStatus("stopped");
+        setError("");
+        return;
+      }
+
+      if (locationEnabledRef.current) {
+        start();
       }
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearTimeout(startupTimer);
+
       document.removeEventListener("visibilitychange", handleVisibilityChange);
 
       clearWatch();
     };
-  }, [clearWatch, stop]);
+  }, [clearWatch, start]);
 
   return {
     position,
