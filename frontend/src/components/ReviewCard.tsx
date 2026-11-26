@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-
+import ReportPhotoGallery from './ReportPhotoGallery'
 import type { ReviewDecision } from '../api/reviewer'
 import type { ReportRead } from '../types/report'
 
@@ -65,22 +65,32 @@ function ReviewCard({
   }
 
   return (
-    <article className="info-card">
+    <article className="info-card admin-review-card">
+      <ReportPhotoGallery
+        reportId={report.id}
+        isAdmin
+      />
       <span className="feature-tag">{report.status}</span>
 
       <h3>{report.title}</h3>
 
       <p>{report.description}</p>
       <p>Location: {report.location_name}</p>
-      <p>
-        Coordinates: {report.latitude}, {report.longitude}
-      </p>
+      <a
+        className="button button-secondary"
+        href={
+          'https://www.openstreetmap.org/' +
+          `?mlat=${report.latitude}&mlon=${report.longitude}` +
+          `#map=18/${report.latitude}/${report.longitude}`
+        }
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View reported location ↗
+      </a>
       <p>Reported severity: {report.severity}</p>
       <p>
         Submitted: {new Date(report.created_at).toLocaleString()}
-      </p>
-      <p className="reviewer-reference">
-        Reference: {report.id}
       </p>
 
       <form

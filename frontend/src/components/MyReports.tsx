@@ -1,141 +1,219 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 import { getMyReports } from '../api/account'
 import { useAuth } from '../hooks/useAuth'
 import type { ReportRead, ReportStatus } from '../types/report'
+import ReportPhotoGallery from './ReportPhotoGallery'
+
 
 const statusLabels: Record<ReportStatus, string> = {
-  pending: 'Pending',
-  verified: 'Verified',
-  rejected: 'Rejected',
+  pending: 'Waiting for review',
+  verified: 'Verified report',
+  rejected: 'Not accepted',
 }
 
 function UserReportList() {
-  const mountedRef = useRef(true)
-  const busyRef = useRef(false)
-
   const [reports, setReports] = useState<ReportRead[]>([])
   const [offset, setOffset] = useState(0)
+  const [retryCount, setRetryCount] = useState(0)
   const [hasNextBatch, setHasNextBatch] = useState(false)
-  const [hasLoaded, setHasLoaded] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    mountedRef.current = true
+    let active = true
+
+    async function loadReports() {
+      try {
+        const data = await getMyReports(offset)
+
+        if (!active) return
+
+        setReports(data)
+        setHasNextBatch(data.length === 20)
+        setError('')
+      } catch (caught) {
+        if (!active) return
+
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : 'Could not load your reports.',
+        )
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadReports()
 
     return () => {
-      mountedRef.current = false
+      active = false
     }
-  }, [])
+  }, [offset, retryCount])
 
-  async function loadReports(nextOffset = 0) {
-    if (busyRef.current) {
-      return
-    }
-
-    busyRef.current = true
-    setIsLoading(true)
+  function changePage(nextOffset: number) {
+    setLoading(true)
     setError('')
+    setOffset(nextOffset)
+  }
 
-    try {
-      const data = await getMyReports(nextOffset)
+  function retry() {
+    setLoading(true)
+    setError('')
+    setRetryCount((value) => value + 1)
+  }
 
-      if (!mountedRef.current) {
-        return
-      }
+  if (loading) {
+    return (
+      <p className="section-note" role="status">
+        Loading your reports…
+      </p>
+    )
+  }
 
-      setReports(data)
-      setOffset(nextOffset)
-      setHasNextBatch(data.length === 20)
-      setHasLoaded(true)
-    } catch (caughtError) {
-      if (mountedRef.current) {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : 'Loading..',
-        )
-      }
-    } finally {
-      busyRef.current = false
+  if (error) {
+    return (
+      <div>
+        <p className="form-message form-message-error" role="alert">
+          {error}
+        </p>
 
-      if (mountedRef.current) {
-        setIsLoading(false)
-      }
-    }
+        <button
+          className="button button-secondary"
+          type="button"
+          onClick={retry}
+        >
+          Try again
+        </button>
+      </div>
+    )
   }
 
   return (
     <>
-      <div className="reviewer-toolbar">
-        <button
-          className="button button-primary"
-          type="button"
-          onClick={() => void loadReports(0)}
-          disabled={isLoading}
-        >
-          {isLoading
-            ? 'Loading Reports..'
-            : 'Refresh'}
-        </button>
-      </div>
+      {reports.length === 0 ? (
+        <div className="info-card">
+          <h3>
+            {offset === 0
+              ? 'You have not submitted any reports yet.'
+              : 'No more reports on this page.'}
+          </h3>
 
-      {error && (
-        <p className="form-message form-message-error" role="alert">
-          {error}
-          {hasLoaded && ' The previously loaded list is showing below.'}
-        </p>
+          {offset === 0 && (
+            <Link className="button button-primary" to="/report">
+              Report road damage
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="reviewer-list">
+          {reports.map((report) => (
+            <article className="my-report-card" key={report.id}>
+              <ReportPhotoGallery reportId={report.id} />
+
+              <div className="my-report-content">
+                <span
+                  className={`report-status report-status-${report.status}`}
+                >
+                  {report.repaired_at
+                    ? 'Repair confirmed'
+                    : statusLabels[report.status]}
+                </span>
+
+                <h2 className="my-report-location">
+                  <span aria-hidden="true">📍 </span>
+                  {report.location_name}
+                </h2>
+
+                <p className="my-report-title">{report.title}</p>
+
+                <div className="my-report-meta">
+                  <span>
+                    Reported severity:{' '}
+                    {{
+                      low: 'Low',
+                      medium: 'Medium',
+                      high: 'High',
+                    }[report.severity]}
+                  </span>
+
+                  <time dateTime={report.created_at}>
+                    {new Date(report.created_at).toLocaleDateString(
+                      'en-IN',
+                      {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      },
+                    )}
+                  </time>
+                </div>
+
+                {report.status === 'pending' && (
+                  <p className="my-report-update">
+                    Your report is waiting for review.
+                  </p>
+                )}
+
+                {report.status === 'verified' && !report.repaired_at && (
+                  <p className="my-report-update">
+                    Repair confirmed on{' '}
+                    {report.repaired_at
+                      ? new Date(report.repaired_at).toLocaleDateString('en-IN')
+                      : 'Date unavailable '}.
+                    {' '}Your report is retained in your history.
+                  </p>
+                )}
+
+                {report.status === 'rejected' && (
+                  <p className="my-report-update">
+                    This report was not accepted during review.
+                  </p>
+                )}
+
+                <a
+                  className="button button-primary"
+                  href={
+                    'https://www.openstreetmap.org/' +
+                    `?mlat=${report.latitude}&mlon=${report.longitude}` +
+                    `#map=18/${report.latitude}/${report.longitude}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View location ↗
+                </a>
+
+                <details className="my-report-details">
+                  <summary>Report details</summary>
+                  <p>{report.description}</p>
+                </details>
+              </div>
+            </article>
+          ))}
+        </div>
       )}
 
-      {hasLoaded && !isLoading && !error && (
-        <p className="section-note" role="status">
-          {reports.length === 0
-            ? 'Not Found'
-            : `${reports.length} reports`}
-        </p>
-      )}
-
-      <div className="reviewer-list" aria-busy={isLoading}>
-        {reports.map((report) => (
-          <article className="info-card" key={report.id}>
-            <span className="feature-tag">
-              {statusLabels[report.status]}
-            </span>
-
-            <h3>{report.title}</h3>
-            <p>{report.description}</p>
-            <p>Jagah: {report.location_name}</p>
-            <p>Reported severity: {report.severity}</p>
-            <p>
-              Bheji gayi:{' '}
-              {new Date(report.created_at).toLocaleString()}
-            </p>
-            <p className="reviewer-reference">
-              Reference: {report.id}
-            </p>
-          </article>
-        ))}
-      </div>
-
-      {hasLoaded && (
+      {(offset > 0 || hasNextBatch) && (
         <div className="reviewer-toolbar">
           <button
             className="button button-secondary"
             type="button"
-            disabled={isLoading || offset === 0}
-            onClick={() =>
-              void loadReports(Math.max(0, offset - 20))
-            }
+            disabled={offset === 0}
+            onClick={() => changePage(Math.max(0, offset - 20))}
           >
-            Prev
+            Previous
           </button>
 
           <button
             className="button button-secondary"
             type="button"
-            disabled={isLoading || !hasNextBatch}
-            onClick={() => void loadReports(offset + 20)}
+            disabled={!hasNextBatch}
+            onClick={() => changePage(offset + 20)}
           >
             Next
           </button>
@@ -151,24 +229,21 @@ function MyReports() {
   return (
     <section
       className="section-container content-section"
-      id="my-reports"
       aria-labelledby="my-reports-title"
     >
-      <span className="eyebrow">YOUR REPORTS AND STATUS</span>
-
-      <h2 className="section-title" id="my-reports-title">
+      <h1 className="section-title" id="my-reports-title">
         My Reports
-      </h2>
+      </h1>
 
       {loading ? (
         <p className="section-note" role="status">
-          Check Login...
+          Checking login…
         </p>
       ) : user ? (
         <UserReportList key={user.uid} />
       ) : (
         <p className="section-note">
-          First Loing
+          Please use the Login button above to view your reports.
         </p>
       )}
     </section>

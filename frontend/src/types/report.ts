@@ -19,4 +19,5 @@ export interface ReportRead extends ReportCreate {
   id: string
   status: ReportStatus
   created_at: string
+  repaired_at: string | null
 }

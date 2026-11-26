@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "../config";
 import type { ReportRead, ReportStatus } from "../types/report";
 import type { MapMatchRequest, ProviderMatchResponse } from "../types/mapMatching";
+import type { ReportPhoto, ReportPhotoPreview } from "../types/photos";
 
 export type ReviewDecision = "verified" | "rejected";
 
@@ -32,6 +33,8 @@ async function reviewerRequest<T>(path: string, reviewerKey: string, options: Re
         ...options,
         headers,
         signal: controller.signal,
+        cache: "no-store",
+        credentials: "omit",
       });
     } catch {
       throw new Error(
@@ -104,4 +107,19 @@ export function matchReviewerTrace(reviewerKey: string, payload: MapMatchRequest
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function getReviewerReportPhotos(reviewerKey: string, reportId: string): Promise<ReportPhoto[]> {
+  return reviewerRequest<ReportPhoto[]>(`/api/admin/reports/${encodeURIComponent(reportId)}/photos`, reviewerKey);
+}
+
+export function getReviewerPhotoPreview(
+  reviewerKey: string,
+  reportId: string,
+  photoId: string,
+): Promise<ReportPhotoPreview> {
+  return reviewerRequest<ReportPhotoPreview>(
+    `/api/admin/reports/${encodeURIComponent(reportId)}` + `/photos/${encodeURIComponent(photoId)}/preview`,
+    reviewerKey,
+  );
 }

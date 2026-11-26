@@ -26,6 +26,9 @@ function LocationPicker({
   const disabledRef = useRef(disabled)
 
   const [tilesUnavailable, setTilesUnavailable] = useState(false)
+  const [locationMessage, setLocationMessage] = useState(
+    'Getting your current location…',
+  )
 
   const latitude = value?.latitude
   const longitude = value?.longitude
@@ -46,7 +49,7 @@ function LocationPicker({
 
     const map = L.map(container, {
       scrollWheelZoom: false,
-    }).setView([28.6139, 77.209], 13)
+    }).setView([26.1542, 85.8918], 13)
 
     mapRef.current = map
 
@@ -132,16 +135,69 @@ function LocationPicker({
     }
   }, [latitude, longitude])
 
+  useEffect(() => {
+    let active = true
+
+    if (!navigator.geolocation) {
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (!active || !mapRef.current) return
+
+        // Do not overwrite a location already selected by the user.
+        if (markerRef.current) {
+          setLocationMessage('Your selected report location is shown.')
+          return
+        }
+
+        if (disabledRef.current) return
+
+        const { latitude, longitude, accuracy } = position.coords
+
+        onSelectRef.current({
+          latitude,
+          longitude,
+        })
+
+        mapRef.current.setView([latitude, longitude], 17)
+
+        setLocationMessage(
+          `Current location selected. Estimated accuracy: ` +
+          `${Math.round(accuracy)} m. Tap the map to correct the pin.`,
+        )
+      },
+      (error) => {
+        if (!active) return
+
+        setLocationMessage(
+          error.code === 1
+            ? 'Location permission is blocked. Allow it in browser settings, ' +
+            'or select the pothole location on the map.'
+            : 'Could not get your location. Select the pothole location on the map.',
+        )
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <div className="form-field">
       <h3 style={{ margin: 0, fontSize: '16px' }}>
         Select the pothole location
       </h3>
 
-      <p className="section-note" style={{ margin: 0 }}>
-        Zoom in, then click or tap the road where the pothole is.
-        Delhi is the initial view, not your current location.
-        You can also enter coordinates in the fields below.
+      <p className="section-note" style={{ margin: 0 }} role="status">
+        {locationMessage}
       </p>
 
       <div

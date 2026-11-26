@@ -1,54 +1,40 @@
-import os
-import secrets
-from pathlib import Path
 from typing import Annotated
 
-from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, status
-from fastapi.security import (
-    HTTPAuthorizationCredentials,
-    HTTPBearer,
-)
+from fastapi import Depends, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-
-BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
-
-bearer_scheme = HTTPBearer(
-    auto_error=False,
-    scheme_name="Reviewer access",
-)
+from database import get_db
+from services.accounts import sync_account_role
+from user_auth import CurrentUser, require_verified_user
 
 
 def require_reviewer(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None,
-        Depends(bearer_scheme),
+    user: Annotated[
+        CurrentUser,
+        Depends(require_verified_user),
     ],
-) -> None:
-    expected_key = os.getenv("REVIEWER_API_KEY")
+    db: Annotated[
+        Session,
+        Depends(get_db),
+    ],
+) -> CurrentUser:
+    try:
+        role = sync_account_role(db, user)
 
-    if not expected_key:
+    except SQLAlchemyError:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Reviewer access is not configured.",
+            status_code=503,
+            detail=(
+                "Could not verify admin access. "
+                "Please try again later."
+            ),
+        ) from None
+
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Your account does not have admin access.",
         )
 
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Reviewer credentials are required.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    valid_key = secrets.compare_digest(
-        credentials.credentials.encode("utf-8"),
-        expected_key.encode("utf-8"),
-    )
-
-    if not valid_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid reviewer credentials.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    return user

@@ -1,29 +1,69 @@
+import logging
 import os
-from typing import Annotated
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from typing import Annotated, Literal
+from uuid import UUID, uuid4
+from services.accounts import sync_account_role
+from datetime import datetime, timezone
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    Form,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from pydantic import ValidationError
 from database import get_db
-from models import Report, ReviewEvent
-from schemas import ReportCreate, ReportRead, ReportReview, ReviewEventRead, MapMatchRequest, ProviderMatchResponse, UserRead
-from typing import Literal
-from security import require_reviewer
-from uuid import UUID
-from user_auth import CurrentUser, require_authenticated_user
-
-from services.map_matching import (
-    MapMatchingError,
-    match_location_samples,
+from models import Report, ReportPhoto, ReviewEvent
+from schemas import (
+    MapMatchRequest,
+    ProviderMatchResponse,
+    ReportCreate,
+    ReportPhotoRead,
+    ReportRead,
+    ReportReview,
+    ReportPhotoPreview,
+    ReviewEventRead,
+    UserRead,
+    RepairConfirmationRead,
 )
-
+from security import require_reviewer
 from user_auth import (
     CurrentUser,
     require_authenticated_user,
     require_verified_user,
 )
 
+from services.map_matching import (
+    MapMatchingError,
+    match_location_samples,
+)
+from services.photo_storage import (
+    PhotoStorageError,
+    delete_confirmed_report_photo,
+    upload_report_photo,
+    create_report_photo_preview,
+)
+from services.photo_validation import (
+    MAX_UPLOAD_BYTES,
+    PhotoValidationError,
+)
+from models import (
+    Report,
+    ReportPhoto,
+    ReviewEvent,
+    RepairConfirmation,
+)
+
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="GodEye API",
@@ -60,33 +100,361 @@ def health_check():
     status_code=status.HTTP_201_CREATED,
 )
 def create_report(
-    payload: ReportCreate,
     db: DatabaseSession,
     user: Annotated[
         CurrentUser,
         Depends(require_verified_user),
     ],
+    payload: Annotated[
+        str,
+        Form(max_length=12000),
+    ],
+    file: Annotated[UploadFile, File()],
 ):
+    # Report details arrive as JSON text inside the form.
+    try:
+        report_data = ReportCreate.model_validate_json(payload)
+
+    except ValidationError:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Report details are invalid. "
+                "Check the required fields and location."
+            ),
+        ) from None
+
+    # A required File parameter blocks requests without a photo.
+    try:
+        raw = file.file.read(MAX_UPLOAD_BYTES + 1)
+
+    except OSError:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not read the selected photo.",
+        ) from None
+
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one photo is required.",
+        )
+
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Photo must be 3 MiB or smaller.",
+        )
+
+    report_id = uuid4()
+    photo_id = uuid4()
+
+    # This service validates the actual image contents,
+    # processes the image and uploads an authenticated asset.
+    try:
+        stored = upload_report_photo(raw, photo_id)
+
+    except PhotoValidationError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from None
+
+    except PhotoStorageError:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Photo upload could not be confirmed. "
+                "The report has not been submitted."
+            ),
+        ) from None
+
+    commit_attempted = False
+
     try:
         with db.begin():
             report = Report(
-                **payload.model_dump(),
+                id=report_id,
+                **report_data.model_dump(),
                 reporter_uid=user.uid,
             )
 
             db.add(report)
             db.flush()
+
+            photo = ReportPhoto(
+                id=photo_id,
+                report_id=report.id,
+                uploaded_by_uid=user.uid,
+                public_id=stored.public_id,
+                asset_id=stored.asset_id,
+                width=stored.width,
+                height=stored.height,
+                byte_size=stored.byte_count,
+            )
+
+            db.add(photo)
+            db.flush()
             db.refresh(report)
 
             result = ReportRead.model_validate(report)
 
+            # Both database records commit together.
+            # A connection failure during commit can leave
+            # the outcome uncertain.
+            commit_attempted = True
+
         return result
 
     except SQLAlchemyError:
+        logger.warning(
+            "Report save could not be confirmed: "
+            "report_id=%s photo_id=%s commit_attempted=%s",
+            report_id,
+            photo_id,
+            commit_attempted,
+        )
+
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not save the report. Please try again later.",
+            status_code=503,
+            detail=(
+                "Report submission could not be confirmed. "
+                "Check My Reports before submitting again."
+            ),
         ) from None
+
+    finally:
+        # If the transaction failed before commit, remove
+        # the confirmed storage upload.
+        # After an uncertain commit, retain the image because
+        # the report and photo record may already be saved.
+        if not commit_attempted:
+            try:
+                delete_confirmed_report_photo(
+                    photo_id,
+                    stored,
+                )
+
+            except PhotoStorageError:
+                logger.warning(
+                    "Report photo cleanup needs follow-up: "
+                    "report_id=%s photo_id=%s",
+                    report_id,
+                    photo_id,
+                )
+
+
+@app.post(
+    "/api/reports/{report_id}/photos",
+    response_model=ReportPhotoRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_report_photo(
+    report_id: UUID,
+    db: DatabaseSession,
+    user: Annotated[
+        CurrentUser,
+        Depends(require_verified_user),
+    ],
+    file: Annotated[UploadFile, File()],
+):
+    # Read at most the permitted size plus one byte.
+    try:
+        raw = file.file.read(MAX_UPLOAD_BYTES + 1)
+    except OSError:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not read the uploaded photo.",
+        ) from None
+
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Photo must be 3 MiB or smaller.",
+        )
+
+    photo_id = uuid4()
+    stored = None
+    commit_attempted = False
+
+    try:
+        with db.begin():
+            # The report lock serializes uploads for this report.
+            # It also prevents its review status from changing
+            # while this transaction is adding photo evidence.
+            report = db.scalar(
+                select(Report)
+                .where(
+                    Report.id == report_id,
+                    Report.reporter_uid == user.uid,
+                )
+                .with_for_update()
+            )
+
+            if report is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Report not found.",
+                )
+
+            if report.status != "pending":
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Photos can only be added "
+                        "to pending reports."
+                    ),
+                )
+
+            photo_count = db.scalar(
+                select(func.count())
+                .select_from(ReportPhoto)
+                .where(
+                    ReportPhoto.report_id == report_id
+                )
+            )
+
+            if photo_count >= 3:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "A report can have a maximum "
+                        "of 3 photos."
+                    ),
+                )
+
+            try:
+                stored = upload_report_photo(
+                    raw,
+                    photo_id,
+                )
+            except PhotoValidationError as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail=str(error),
+                ) from None
+            except PhotoStorageError:
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "Photo upload could not be confirmed. "
+                        "Please check your report before "
+                        "trying again."
+                    ),
+                ) from None
+
+            photo = ReportPhoto(
+                id=photo_id,
+                report_id=report_id,
+                uploaded_by_uid=user.uid,
+                public_id=stored.public_id,
+                asset_id=stored.asset_id,
+                width=stored.width,
+                height=stored.height,
+                byte_size=stored.byte_count,
+            )
+
+            db.add(photo)
+            db.flush()
+            db.refresh(photo)
+
+            result = ReportPhotoRead.model_validate(photo)
+
+            # Exiting db.begin() now attempts the commit.
+            # If the connection fails during commit, the
+            # database may still have saved the record.
+            commit_attempted = True
+
+        return result
+
+    except SQLAlchemyError:
+        if commit_attempted:
+            logger.warning(
+                "Photo database commit outcome uncertain: "
+                "photo_id=%s report_id=%s",
+                photo_id,
+                report_id,
+            )
+
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Photo save could not be confirmed. "
+                "Please check your report before "
+                "trying again."
+            ),
+        ) from None
+
+    finally:
+        # Only remove a confirmed upload if failure happened
+        # before the database commit was attempted.
+        if stored is not None and not commit_attempted:
+            try:
+                delete_confirmed_report_photo(
+                    photo_id,
+                    stored,
+                )
+            except PhotoStorageError:
+                logger.warning(
+                    "Photo cleanup needs follow-up: "
+                    "photo_id=%s report_id=%s",
+                    photo_id,
+                    report_id,
+                )
+
+
+@app.get(
+    "/api/reports/{report_id}/photos",
+    response_model=list[ReportPhotoRead],
+)
+def list_my_report_photos(
+    report_id: UUID,
+    response: Response,
+    db: DatabaseSession,
+    user: Annotated[
+        CurrentUser,
+        Depends(require_authenticated_user),
+    ],
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        report = db.scalar(
+            select(Report)
+            .where(
+                Report.id == report_id,
+                Report.reporter_uid == user.uid,
+            )
+        )
+
+        if report is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Report not found.",
+            )
+
+        photos = db.scalars(
+            select(ReportPhoto)
+            .where(
+                ReportPhoto.report_id == report_id
+            )
+            .order_by(
+                ReportPhoto.created_at.asc(),
+                ReportPhoto.id.asc(),
+            )
+        ).all()
+
+        return [
+            ReportPhotoRead.model_validate(photo)
+            for photo in photos
+        ]
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load report photos.",
+        ) from None
+
 
 @app.get(
     "/api/hazards",
@@ -99,7 +467,10 @@ def list_verified_hazards(
 ):
     statement = (
         select(Report)
-        .where(Report.status == "verified")
+        .where(
+            Report.status == "verified",
+            Report.repaired_at.is_(None),
+        )
         .order_by(
             Report.created_at.desc(),
             Report.id.desc(),
@@ -126,26 +497,53 @@ def list_verified_hazards(
 @app.get(
     "/api/admin/reports",
     response_model=list[ReportRead],
-    dependencies=[Depends(require_reviewer)],
 )
 def list_reports_for_review(
+    response: Response,
     db: DatabaseSession,
+    reviewer: Annotated[
+        CurrentUser,
+        Depends(require_reviewer),
+    ],
     review_status: Literal[
         "pending", "verified", "rejected"
     ] = "pending",
+    mine: bool = False,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
+    response.headers["Cache-Control"] = "no-store"
+
     statement = (
         select(Report)
         .where(Report.status == review_status)
-        .order_by(
+    )
+
+    if mine:
+        # Identity comes from verified login, not a supplied UID.
+        my_decision_exists = (
+            select(ReviewEvent.id)
+            .where(
+                ReviewEvent.report_id == Report.id,
+                ReviewEvent.reviewer_uid == reviewer.uid,
+            )
+            .exists()
+        )
+
+        statement = statement.where(my_decision_exists)
+
+    if review_status == "pending":
+        statement = statement.order_by(
             Report.created_at.asc(),
             Report.id.asc(),
         )
-        .limit(limit)
-        .offset(offset)
-    )
+    else:
+        statement = statement.order_by(
+            Report.created_at.desc(),
+            Report.id.desc(),
+        )
+
+    statement = statement.limit(limit).offset(offset)
 
     try:
         reports = db.scalars(statement).all()
@@ -157,7 +555,7 @@ def list_reports_for_review(
 
     except SQLAlchemyError:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=503,
             detail="Could not load reports. Please try again later.",
         ) from None
 
@@ -171,8 +569,16 @@ def review_report(
     report_id: UUID,
     payload: ReportReview,
     db: DatabaseSession,
+    reviewer: Annotated[
+        CurrentUser,
+        Depends(require_reviewer),
+    ],
 ):
-    reviewer_label = os.getenv("REVIEWER_LABEL", "").strip()
+
+    # reviewer_label = os.getenv("REVIEWER_LABEL", "").strip()
+    reviewer_label = (
+        reviewer.name or reviewer.email or "Admin"
+    )[:100]
 
     if not reviewer_label or len(reviewer_label) > 100:
         raise HTTPException(
@@ -213,6 +619,7 @@ def review_report(
                 report_id=report.id,
                 previous_status=report.status,
                 new_status=payload.status,
+                reviewer_uid=reviewer.uid,
                 reviewer_label=reviewer_label,
                 reason=payload.reason,
             )
@@ -309,17 +716,41 @@ def match_trace(payload: MapMatchRequest):
             },
         ) from None
 
+
 @app.get(
     "/api/me",
     response_model=UserRead,
 )
 def get_current_user(
+    response: Response,
+    db: DatabaseSession,
     user: Annotated[
         CurrentUser,
         Depends(require_authenticated_user),
     ],
 ):
-    return UserRead.model_validate(user)
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        role = sync_account_role(db, user)
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Could not load your account. "
+                "Please try again later."
+            ),
+        ) from None
+
+    return UserRead(
+        uid=user.uid,
+        email=user.email,
+        email_verified=user.email_verified,
+        name=user.name,
+        role=role,
+    )
+
 
 @app.get(
     "/api/my/reports",
@@ -358,3 +789,341 @@ def get_my_reports(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load your reports. Please try again later.",
         ) from None
+
+
+@app.get(
+    "/api/admin/reports/{report_id}/photos",
+    response_model=list[ReportPhotoRead],
+    dependencies=[Depends(require_reviewer)],
+)
+def list_review_report_photos(
+    report_id: UUID,
+    response: Response,
+    db: DatabaseSession,
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        report = db.scalar(
+            select(Report)
+            .where(Report.id == report_id)
+        )
+
+        if report is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Report not found.",
+            )
+
+        photos = db.scalars(
+            select(ReportPhoto)
+            .where(
+                ReportPhoto.report_id == report_id
+            )
+            .order_by(
+                ReportPhoto.created_at.asc(),
+                ReportPhoto.id.asc(),
+            )
+        ).all()
+
+        return [
+            ReportPhotoRead.model_validate(photo)
+            for photo in photos
+        ]
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load report photos.",
+        ) from None
+
+
+def _build_report_photo_preview(
+    photo: ReportPhoto,
+) -> ReportPhotoPreview:
+    try:
+        url, expires_at = create_report_photo_preview(
+            photo.id,
+            photo.public_id,
+        )
+    except PhotoStorageError:
+        raise HTTPException(
+            status_code=503,
+            detail="Photo preview is temporarily unavailable.",
+        ) from None
+
+    return ReportPhotoPreview(
+        photo_id=photo.id,
+        url=url,
+        expires_at=expires_at,
+    )
+
+
+@app.get(
+    "/api/reports/{report_id}/photos/{photo_id}/preview",
+    response_model=ReportPhotoPreview,
+)
+def preview_my_report_photo(
+    report_id: UUID,
+    photo_id: UUID,
+    response: Response,
+    db: DatabaseSession,
+    user: Annotated[
+        CurrentUser,
+        Depends(require_authenticated_user),
+    ],
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        photo = db.scalar(
+            select(ReportPhoto)
+            .join(
+                Report,
+                Report.id == ReportPhoto.report_id,
+            )
+            .where(
+                ReportPhoto.id == photo_id,
+                ReportPhoto.report_id == report_id,
+                Report.reporter_uid == user.uid,
+            )
+        )
+
+        if photo is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Photo not found.",
+            )
+
+        return _build_report_photo_preview(photo)
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load the photo preview.",
+        ) from None
+
+
+@app.get(
+    "/api/admin/reports/{report_id}/photos/{photo_id}/preview",
+    response_model=ReportPhotoPreview,
+    dependencies=[Depends(require_reviewer)],
+)
+def preview_review_report_photo(
+    report_id: UUID,
+    photo_id: UUID,
+    response: Response,
+    db: DatabaseSession,
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        photo = db.scalar(
+            select(ReportPhoto)
+            .where(
+                ReportPhoto.id == photo_id,
+                ReportPhoto.report_id == report_id,
+            )
+        )
+
+        if photo is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Photo not found.",
+            )
+
+        return _build_report_photo_preview(photo)
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load the photo preview.",
+        ) from None
+
+
+@app.post(
+    "/api/admin/reports/{report_id}/repair",
+    response_model=RepairConfirmationRead,
+    status_code=201,
+)
+def confirm_report_repair(
+    report_id: UUID,
+    db: DatabaseSession,
+    reviewer: Annotated[
+        CurrentUser,
+        Depends(require_reviewer),
+    ],
+    note: Annotated[
+        str,
+        Form(min_length=10, max_length=2000),
+    ],
+    file: Annotated[UploadFile, File()],
+):
+    clean_note = note.strip()
+
+    if len(clean_note) < 10:
+        raise HTTPException(
+            status_code=422,
+            detail="Explain the repair in at least 10 characters.",
+        )
+
+    try:
+        raw = file.file.read(MAX_UPLOAD_BYTES + 1)
+
+    except OSError:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not read the repair photo.",
+        ) from None
+
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="A repair photo is required.",
+        )
+
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Repair photo must be 3 MiB or smaller.",
+        )
+
+    photo_id = uuid4()
+    stored = None
+    commit_attempted = False
+
+    try:
+        with db.begin():
+            report = db.scalar(
+                select(Report)
+                .where(Report.id == report_id)
+                .with_for_update()
+            )
+
+            if report is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Report not found.",
+                )
+
+            if report.status != "verified":
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Repair can only be confirmed "
+                        "for a verified report."
+                    ),
+                )
+
+            existing_confirmation = db.scalar(
+                select(RepairConfirmation.id)
+                .where(
+                    RepairConfirmation.report_id == report_id
+                )
+            )
+
+            if (
+                report.repaired_at is not None
+                or existing_confirmation is not None
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Repair has already been confirmed. "
+                        "Reload the report."
+                    ),
+                )
+
+            try:
+                stored = upload_report_photo(raw, photo_id)
+
+            except PhotoValidationError as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail=str(error),
+                ) from None
+
+            except PhotoStorageError:
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "Repair photo upload could not be confirmed. "
+                        "Reload the report before trying again."
+                    ),
+                ) from None
+
+            photo = ReportPhoto(
+                id=photo_id,
+                report_id=report_id,
+                uploaded_by_uid=reviewer.uid,
+                public_id=stored.public_id,
+                asset_id=stored.asset_id,
+                width=stored.width,
+                height=stored.height,
+                byte_size=stored.byte_count,
+            )
+
+            db.add(photo)
+            db.flush()
+
+            confirmed_at = datetime.now(timezone.utc)
+
+            confirmation = RepairConfirmation(
+                id=uuid4(),
+                report_id=report_id,
+                photo_id=photo_id,
+                confirmed_by_uid=reviewer.uid,
+                note=clean_note,
+                created_at=confirmed_at,
+            )
+
+            db.add(confirmation)
+            report.repaired_at = confirmed_at
+
+            db.flush()
+
+            result = RepairConfirmationRead.model_validate(
+                confirmation
+            )
+
+            # The photo record, confirmation and repaired_at
+            # are committed together in the database.
+            commit_attempted = True
+
+        return result
+
+    except SQLAlchemyError:
+        logger.warning(
+            "Repair confirmation outcome uncertain: "
+            "report_id=%s photo_id=%s commit_attempted=%s",
+            report_id,
+            photo_id,
+            commit_attempted,
+        )
+
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Repair confirmation could not be confirmed. "
+                "Reload the report before trying again."
+            ),
+        ) from None
+
+    finally:
+        # Before commit, a failed transaction can be rolled back
+        # and its confirmed storage upload cleaned up.
+        # After an uncertain commit, retain the uploaded image.
+        if stored is not None and not commit_attempted:
+            try:
+                delete_confirmed_report_photo(
+                    photo_id,
+                    stored,
+                )
+
+            except PhotoStorageError:
+                logger.warning(
+                    "Repair photo cleanup needs follow-up: "
+                    "report_id=%s photo_id=%s",
+                    report_id,
+                    photo_id,
+                )
