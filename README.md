@@ -51,9 +51,18 @@ Voice alerts are experimental. Their timing depends on location quality, movemen
 
 ## Links
 
-- Web application: https://god-eye-eight.vercel.app/
-- Backend health: https://godeye-api.vercel.app/api/health
-- Repository: https://github.com/shadazam08/GodEye
+- [Web application](https://god-eye-eight.vercel.app/)
+- [Backend healt](https://godeye-api.vercel.app/api/health)
+- [Repository](https://github.com/shadazam08/GodEye)
+
+## Download the Android App
+
+[Download GodEye for Android (.apk)](https://github.com/shadazam08/GodEye/releases/download/android-v1.0.0/GodEye.apk)
+
+GodEye is available as an Android preview build for academic evaluation.
+
+An internet connection is required for maps, Google sign-in,
+route planning, and report submission.
 
 ## Implemented features
 
