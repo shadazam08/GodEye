@@ -10,6 +10,11 @@ type VoiceLanguage = 'hi-IN' | 'en-IN'
 
 export type VoiceControlsHandle = {
     activate: () => void
+    announceReport: (
+        reportId: string,
+        onStarted: () => void,
+    ) => boolean
+    cancelReport: () => void
 }
 
 function readPreferences(): {
@@ -52,6 +57,7 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
         const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
         const activatedRef = useRef(false)
         const timerRef = useRef<number | null>(null)
+        const reportIdRef = useRef<string | null>(null)
 
         useEffect(() => {
             try {
@@ -98,6 +104,7 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
         }, [supported])
 
         function stopSpeech() {
+            reportIdRef.current = null
             const current = utteranceRef.current
             utteranceRef.current = null
 
@@ -111,19 +118,21 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
             }
         }
 
-        function activate() {
+        function activate(nextPreferences = preferences) {
             if (
                 !supported ||
                 preferences.muted ||
                 document.hidden ||
                 activatedRef.current ||
-                utteranceRef.current
+                utteranceRef.current ||
+                nextPreferences.muted
             ) {
                 return
             }
 
             const synthesis = window.speechSynthesis
-            const language = preferences.language
+            // const language = preferences.language
+            const language = nextPreferences.language
 
             const utterance = new SpeechSynthesisUtterance(
                 language === 'hi-IN'
@@ -192,7 +201,94 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
             }
         }
 
-        useImperativeHandle(ref, () => ({ activate }))
+        function cancelReport() {
+            if (reportIdRef.current !== null) {
+                stopSpeech()
+            }
+        }
+
+        function announceReport(
+            reportId: string,
+            onStarted: () => void,
+        ): boolean {
+            if (
+                !supported ||
+                preferences.muted ||
+                document.hidden ||
+                !activatedRef.current ||
+                utteranceRef.current
+            ) {
+                return false
+            }
+
+            const language = preferences.language
+            const synthesis = window.speechSynthesis
+
+            const utterance = new SpeechSynthesisUtterance(
+                language === 'hi-IN'
+                    ? 'आपके नियोजित रास्ते के पास सड़क खराब होने की रिपोर्ट है। सावधानी से चलें।'
+                    : 'Road damage has been reported near your planned route. Proceed with caution.',
+            )
+
+            const voice = synthesis.getVoices().find(
+                (item) =>
+                    item.lang.toLowerCase().replace('_', '-')
+                        .split('-')[0] === language.split('-')[0],
+            )
+
+            utterance.lang = language
+            if (voice) utterance.voice = voice
+            utterance.rate = 0.95
+            utterance.volume = 1
+
+            function failed() {
+                if (utteranceRef.current !== utterance) return
+
+                stopSpeech()
+                activatedRef.current = false
+                setNeedsActivation(true)
+                setMessage(
+                    'Sound could not play. Check your volume or enable sound again.',
+                )
+            }
+
+            utterance.onstart = () => {
+                if (utteranceRef.current !== utterance) return
+
+                if (timerRef.current !== null) {
+                    window.clearTimeout(timerRef.current)
+                    timerRef.current = null
+                }
+
+                setMessage('')
+                onStarted()
+            }
+
+            utterance.onend = () => {
+                if (utteranceRef.current !== utterance) return
+                stopSpeech()
+            }
+
+            utterance.onerror = failed
+
+            reportIdRef.current = reportId
+            utteranceRef.current = utterance
+            timerRef.current = window.setTimeout(failed, 10_000)
+
+            try {
+                synthesis.speak(utterance)
+                return true
+            } catch {
+                failed()
+                return false
+            }
+        }
+
+        useImperativeHandle(ref, () => ({
+            activate,
+            announceReport,
+            cancelReport,
+        }))
 
         if (!supported) {
             return (
@@ -211,15 +307,20 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
                         aria-label={preferences.muted ? 'Unmute voice' : 'Mute voice'}
                         aria-pressed={preferences.muted}
                         onClick={() => {
+                            const nextPreferences = {
+                                ...preferences,
+                                muted: !preferences.muted,
+                            }
+
                             stopSpeech()
                             activatedRef.current = false
                             setNeedsActivation(false)
                             setMessage('')
+                            setPreferences(nextPreferences)
 
-                            setPreferences((current) => ({
-                                ...current,
-                                muted: !current.muted,
-                            }))
+                            if (!nextPreferences.muted) {
+                                activate(nextPreferences)
+                            }
                         }}
                     >
                         <span aria-hidden="true">
@@ -233,17 +334,23 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
                         value={preferences.language}
                         onChange={(event) => {
                             const language = event.target.value
+
                             if (language !== 'hi-IN' && language !== 'en-IN') return
+
+                            const nextPreferences: {
+                                muted: boolean
+                                language: VoiceLanguage
+                            } = {
+                                ...preferences,
+                                language,
+                            }
 
                             stopSpeech()
                             activatedRef.current = false
                             setMessage('')
                             setNeedsActivation(false)
-
-                            setPreferences((current) => ({
-                                ...current,
-                                language,
-                            }))
+                            setPreferences(nextPreferences)
+                            activate(nextPreferences)
                         }}
                     >
                         <option value="hi-IN">हिन्दी</option>
@@ -255,7 +362,7 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
                     <button
                         className="button button-secondary"
                         type="button"
-                        onClick={activate}
+                        onClick={() => activate()}
                     >
                         Enable sound
                     </button>

@@ -15,6 +15,7 @@ import {
 } from '../utils/routeHazards'
 import VoiceControls from './VoiceControls'
 import type { VoiceControlsHandle } from './VoiceControls'
+import { assessHazardApproach } from '../utils/geo'
 
 const severityColors: Record<Severity, string> = {
     low: '#22c55e',
@@ -29,6 +30,9 @@ function HazardMap() {
     const locationLayerRef = useRef<L.LayerGroup | null>(null)
     const centeredRef = useRef(false)
     const voiceRef = useRef<VoiceControlsHandle | null>(null)
+    const announcedReportsRef = useRef(new Set<string>())
+    const lastAnnouncementRef = useRef(Number.NEGATIVE_INFINITY)
+    const candidateIdRef = useRef<string | null>(null)
 
     const [followLocation, setFollowLocation] = useState(true)
     const [hazardsStatus, setHazardsStatus] = useState<
@@ -527,6 +531,130 @@ function HazardMap() {
             setFollowLocation(false)
         }
     }
+
+    // Reset report announcements when the planned route changes.
+    useEffect(() => {
+        const voice = voiceRef.current
+
+        announcedReportsRef.current = new Set()
+        candidateIdRef.current = null
+        voice?.cancelReport()
+
+        return () => {
+            voice?.cancelReport()
+        }
+    }, [route])
+
+    // Reassess current conditions. Do not queue future announcements.
+    useEffect(() => {
+        function checkForReport() {
+            const now = Date.now()
+
+            let candidate: {
+                id: string
+                distance: number
+            } | null = null
+
+            if (
+                !document.hidden &&
+                route &&
+                position &&
+                status === 'tracking' &&
+                hazardsStatus === 'ready'
+            ) {
+                const locationAssessment = assessRouteLocation(
+                    position,
+                    route.geometry,
+                    now,
+                    status,
+                )
+
+                if (locationAssessment.state === 'usable') {
+                    for (const report of hazards) {
+                        if (
+                            report.status !== 'verified' ||
+                            report.repaired_at !== null
+                        ) {
+                            continue
+                        }
+
+                        const order = assessHazardRouteOrder(
+                            position,
+                            report,
+                            route.geometry,
+                            now,
+                            status,
+                        )
+
+                        if (
+                            order.state !== 'later' ||
+                            order.separationAlongRouteMetres > 200
+                        ) {
+                            continue
+                        }
+
+                        const approach = assessHazardApproach(
+                            position,
+                            report,
+                            now,
+                        )
+
+                        if (approach.state !== 'candidate') {
+                            continue
+                        }
+
+                        if (
+                            candidate === null ||
+                            order.separationAlongRouteMetres < candidate.distance
+                        ) {
+                            candidate = {
+                                id: report.id,
+                                distance: order.separationAlongRouteMetres,
+                            }
+                        }
+                    }
+                }
+            }
+
+            const candidateId = candidate?.id ?? null
+
+            if (candidateId !== candidateIdRef.current) {
+                voiceRef.current?.cancelReport()
+                candidateIdRef.current = candidateId
+            }
+
+            if (
+                !candidate ||
+                announcedReportsRef.current.has(candidate.id) ||
+                now - lastAnnouncementRef.current < 25_000
+            ) {
+                return
+            }
+
+            const reportId = candidate.id
+            const currentSession = announcedReportsRef.current
+
+            voiceRef.current?.announceReport(reportId, () => {
+                if (
+                    announcedReportsRef.current !== currentSession ||
+                    candidateIdRef.current !== reportId
+                ) {
+                    return
+                }
+
+                currentSession.add(reportId)
+                lastAnnouncementRef.current = Date.now()
+            })
+        }
+
+        const timer = window.setInterval(checkForReport, 1_000)
+
+        return () => {
+            window.clearInterval(timer)
+        }
+    }, [route, position, status, hazardsStatus, hazards])
+
+
     useEffect(() => {
         document.body.classList.add('godeye-driver-screen')
 
@@ -534,6 +662,8 @@ function HazardMap() {
             document.body.classList.remove('godeye-driver-screen')
         }
     }, [])
+
+
 
     return (
         <section
