@@ -15,7 +15,10 @@ import {
 } from '../utils/routeHazards'
 import VoiceControls from './VoiceControls'
 import type { VoiceControlsHandle } from './VoiceControls'
-import { assessHazardApproach } from '../utils/geo'
+import {
+    selectVoiceAlert,
+    canAnnounceVoiceAlert,
+} from '../utils/voiceAlerts'
 
 const severityColors: Record<Severity, string> = {
     low: '#22c55e',
@@ -550,71 +553,15 @@ function HazardMap() {
         function checkForReport() {
             const now = Date.now()
 
-            let candidate: {
-                id: string
-                distance: number
-            } | null = null
-
-            if (
-                !document.hidden &&
-                route &&
-                position &&
-                status === 'tracking' &&
-                hazardsStatus === 'ready'
-            ) {
-                const locationAssessment = assessRouteLocation(
-                    position,
-                    route.geometry,
-                    now,
-                    status,
-                )
-
-                if (locationAssessment.state === 'usable') {
-                    for (const report of hazards) {
-                        if (
-                            report.status !== 'verified' ||
-                            report.repaired_at !== null
-                        ) {
-                            continue
-                        }
-
-                        const order = assessHazardRouteOrder(
-                            position,
-                            report,
-                            route.geometry,
-                            now,
-                            status,
-                        )
-
-                        if (
-                            order.state !== 'later' ||
-                            order.separationAlongRouteMetres > 200
-                        ) {
-                            continue
-                        }
-
-                        const approach = assessHazardApproach(
-                            position,
-                            report,
-                            now,
-                        )
-
-                        if (approach.state !== 'candidate') {
-                            continue
-                        }
-
-                        if (
-                            candidate === null ||
-                            order.separationAlongRouteMetres < candidate.distance
-                        ) {
-                            candidate = {
-                                id: report.id,
-                                distance: order.separationAlongRouteMetres,
-                            }
-                        }
-                    }
-                }
-            }
+            const candidate = selectVoiceAlert({
+                reading: position,
+                geometry: route?.geometry ?? null,
+                reports: hazards,
+                trackingStatus: status,
+                reportsStatus: hazardsStatus,
+                visible: !document.hidden,
+                now,
+            })
 
             const candidateId = candidate?.id ?? null
 
@@ -625,8 +572,12 @@ function HazardMap() {
 
             if (
                 !candidate ||
-                announcedReportsRef.current.has(candidate.id) ||
-                now - lastAnnouncementRef.current < 25_000
+                !canAnnounceVoiceAlert(
+                    candidate,
+                    announcedReportsRef.current,
+                    lastAnnouncementRef.current,
+                    now,
+                )
             ) {
                 return
             }
@@ -636,12 +587,14 @@ function HazardMap() {
 
             voiceRef.current?.announceReport(reportId, () => {
                 if (
+                    document.hidden ||
                     announcedReportsRef.current !== currentSession ||
                     candidateIdRef.current !== reportId
                 ) {
                     return
                 }
 
+                // Mark as announced only when speech actually starts.
                 currentSession.add(reportId)
                 lastAnnouncementRef.current = Date.now()
             })
@@ -649,8 +602,18 @@ function HazardMap() {
 
         const timer = window.setInterval(checkForReport, 1_000)
 
+        document.addEventListener(
+            'visibilitychange',
+            checkForReport,
+        )
+
         return () => {
             window.clearInterval(timer)
+
+            document.removeEventListener(
+                'visibilitychange',
+                checkForReport,
+            )
         }
     }, [route, position, status, hazardsStatus, hazards])
 
@@ -663,7 +626,41 @@ function HazardMap() {
         }
     }, [])
 
+    // Refresh road reports while the map is visible.
+    // Returning to the page also requests current report data.
+    useEffect(() => {
+        function refreshVisibleReports() {
+            if (!document.hidden) {
+                setRefreshCount((count) => count + 1)
+            }
+        }
 
+        const timer = window.setInterval(
+            refreshVisibleReports,
+            60_000,
+        )
+
+        document.addEventListener(
+            'visibilitychange',
+            refreshVisibleReports,
+        )
+
+        window.addEventListener('online', refreshVisibleReports)
+
+        return () => {
+            window.clearInterval(timer)
+
+            document.removeEventListener(
+                'visibilitychange',
+                refreshVisibleReports,
+            )
+
+            window.removeEventListener(
+                'online',
+                refreshVisibleReports,
+            )
+        }
+    }, [])
 
     return (
         <section
