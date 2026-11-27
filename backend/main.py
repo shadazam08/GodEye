@@ -92,6 +92,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://god-eye-eight.vercel.app",
+        "https://god-3i6k6ok3o-shad-azams.vercel.app",
         "https://localhost",
     ],
     allow_credentials=False,
