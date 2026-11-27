@@ -21,10 +21,20 @@
 
   <body>
     <div id="root">
-      <p role="status" style="padding: 32px 20px; color: #ffffff; background: #0b1220; font-family: Arial, sans-serif">
+      <p id="godeye-boot" style="padding: 24px; color: #f8fafc; background: #0b1220; font-family: Arial, sans-serif">
         Starting GodEye…
       </p>
     </div>
+
+    <script>
+      window.setTimeout(function () {
+        var indicator = document.getElementById("godeye-boot");
+
+        if (indicator) {
+          indicator.textContent = "GodEye startup is taking too long. Application files may not have loaded.";
+        }
+      }, 20000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
