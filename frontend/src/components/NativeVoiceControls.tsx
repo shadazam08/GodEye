@@ -112,30 +112,42 @@ const NativeVoiceControls = forwardRef<VoiceControlsHandle>(
                 .then(async () => {
                     if (!isCurrent()) return
 
-                    // Allow a short time for Android's speech engine to start.
-                    for (let attempt = 0; ; attempt += 1) {
+                    // Wait briefly for Android's speech engine and voice data.
+                    let supported = false
+
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                        if (!isCurrent()) return
+
                         try {
                             await TextToSpeech.stop()
-                            break
-                        } catch (error) {
-                            if (attempt === 5) throw error
+                            if (!isCurrent()) return
 
-                            await new Promise<void>((resolve) => {
-                                window.setTimeout(resolve, 400)
+                            const result = await TextToSpeech.isLanguageSupported({
+                                lang: language,
                             })
+                            if (!isCurrent()) return
 
+                            if (result.supported) {
+                                supported = true
+                                break
+                            }
+                        } catch (error) {
+                            if (!isCurrent()) return
+
+                            const notReady = error instanceof Error &&
+                                error.message ===
+                                'Not yet initialized or not available on this device.'
+
+                            if (!notReady || attempt === 15) throw error
+                        }
+
+                        if (attempt < 15) {
+                            await new Promise<void>((resolve) => {
+                                window.setTimeout(resolve, 500)
+                            })
                             if (!isCurrent()) return
                         }
                     }
-
-                    if (!isCurrent()) return
-
-                    const { supported } =
-                        await TextToSpeech.isLanguageSupported({
-                            lang: language,
-                        })
-
-                    if (!isCurrent()) return
 
                     if (!supported) {
                         failed(
