@@ -1,0 +1,90 @@
+name: GodEye - Create Android signing certificate
+
+on:
+  push:
+    branches:
+      - android-app
+    paths:
+      - .github/workflows/android-signing-setup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create-certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+
+    steps:
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Check signing password
+        shell: bash
+        run: |
+          if [ "${#KEYSTORE_PASSWORD}" -lt 32 ]; then
+            echo "Set ANDROID_KEYSTORE_PASSWORD to at least 32 characters."
+            exit 1
+          fi
+
+      - name: Generate signing certificate
+        shell: bash
+        run: |
+          umask 077
+
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/godeye-upload.p12" \
+            -storetype PKCS12 \
+            -alias godeye \
+            -keyalg RSA \
+            -keysize 3072 \
+            -validity 10000 \
+            -storepass:env KEYSTORE_PASSWORD \
+            -keypass:env KEYSTORE_PASSWORD \
+            -dname "CN=Midnight Tigers, OU=GodEye, O=Midnight Tigers, C=IN"
+
+      - name: Export public certificate fingerprints
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/godeye-signing-output"
+
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/godeye-upload.p12" \
+            -alias godeye \
+            -storepass:env KEYSTORE_PASSWORD \
+            > "$RUNNER_TEMP/godeye-signing-output/fingerprints.txt"
+
+          cat "$RUNNER_TEMP/godeye-signing-output/fingerprints.txt"
+
+      - name: Encrypt signing key for download
+        shell: bash
+        run: |
+          printf '%s' "$KEYSTORE_PASSWORD" |
+            gpg --batch --yes \
+              --pinentry-mode loopback \
+              --passphrase-fd 0 \
+              --symmetric \
+              --cipher-algo AES256 \
+              --output "$RUNNER_TEMP/godeye-signing-output/godeye-upload.p12.gpg" \
+              "$RUNNER_TEMP/godeye-upload.p12"
+
+      - name: Upload encrypted key and fingerprints
+        uses: actions/upload-artifact@v4
+        with:
+          name: godeye-signing-backup
+          path: ${{ runner.temp }}/godeye-signing-output/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove unencrypted temporary key
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/godeye-upload.p12"
