@@ -68,6 +68,38 @@ class ReportRead(BaseModel):
     repaired_at: datetime | None = None
 
 
+class HazardBounds(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    south: float = Field(ge=-90, le=90)
+    north: float = Field(ge=-90, le=90)
+    west: float = Field(ge=-180, le=180)
+    east: float = Field(ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def validate_area(self):
+        latitude_span = self.north - self.south
+        longitude_span = (self.east - self.west) % 360
+
+        if not 0 < latitude_span <= 2:
+            raise ValueError("Latitude span must be greater than 0 and at most 2 degrees.")
+
+        if not 0 < longitude_span <= 2:
+            raise ValueError("Longitude span must be greater than 0 and at most 2 degrees.")
+
+        return self
+
+
+class HazardAreaQuery(HazardBounds):
+    limit: int = Field(default=200, ge=1, le=200)
+    cursor: str | None = Field(default=None, min_length=1, max_length=512)
+
+
+class HazardPage(BaseModel):
+    items: list[ReportRead]
+    next_cursor: str | None
+
+
 class ReportReview(BaseModel):
     model_config = ConfigDict(
         extra="forbid",

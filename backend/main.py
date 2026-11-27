@@ -16,7 +16,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from pydantic import ValidationError
@@ -36,6 +36,8 @@ from schemas import (
     RouteRead,
     DestinationRead,
     RepairConfirmationRead,
+    HazardAreaQuery,
+    HazardPage,
 )
 from security import require_reviewer
 from user_auth import (
@@ -74,6 +76,7 @@ from services.routing import (
     RoutingError,
     calculate_route,
 )
+from services.hazards import HazardCursorError, list_area_hazards
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +108,22 @@ def health_check():
         "status": "ok",
         "service": "GodEye API",
     }
+
+
+@app.get("/api/ready")
+def readiness_check(response: Response, db: DatabaseSession):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        db.execute(text("SELECT 1")).scalar_one()
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database readiness could not be confirmed.",
+            headers={"Cache-Control": "no-store"},
+        ) from None
+
+    return {"status": "ok", "service": "GodEye API"}
 
 
 @app.post(
@@ -507,6 +526,30 @@ def list_verified_hazards(
         ) from None
 
 
+@app.get("/api/hazards/area", response_model=HazardPage)
+def list_verified_hazards_in_area(
+    response: Response,
+    db: DatabaseSession,
+    query: Annotated[HazardAreaQuery, Query()],
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        return list_area_hazards(db, query)
+    except HazardCursorError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
+            headers={"Cache-Control": "no-store"},
+        ) from None
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load road hazards. Please try again later.",
+            headers={"Cache-Control": "no-store"},
+        ) from None
+
+
 @app.get(
     "/api/admin/reports",
     response_model=list[ReportRead],
@@ -770,6 +813,7 @@ def get_current_user(
     response_model=list[ReportRead],
 )
 def get_my_reports(
+    response: Response,
     db: DatabaseSession,
     user: Annotated[
         CurrentUser,
@@ -778,6 +822,8 @@ def get_my_reports(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
+    response.headers["Cache-Control"] = "no-store"
+
     statement = (
         select(Report)
         .where(Report.reporter_uid == user.uid)
@@ -801,6 +847,7 @@ def get_my_reports(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load your reports. Please try again later.",
+            headers={"Cache-Control": "no-store"},
         ) from None
 
 
