@@ -6,6 +6,9 @@ import {
     useState,
 } from 'react'
 
+import { Capacitor } from '@capacitor/core'
+import NativeVoiceControls from './NativeVoiceControls'
+
 type VoiceLanguage = 'hi-IN' | 'en-IN'
 
 export type VoiceControlsHandle = {
@@ -41,8 +44,8 @@ function readPreferences(): {
     return { muted: false, language: 'hi-IN' }
 }
 
-const VoiceControls = forwardRef<VoiceControlsHandle>(
-    function VoiceControls(_, ref) {
+const BrowserVoiceControls = forwardRef<VoiceControlsHandle>(
+    function BrowserVoiceControls(_, ref) {
         const [preferences, setPreferences] = useState(readPreferences)
         const [message, setMessage] = useState('')
         const [needsActivation, setNeedsActivation] = useState(false)
@@ -372,6 +375,16 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
                 )}
             </section>
         )
+    },
+
+
+)
+
+const VoiceControls = forwardRef<VoiceControlsHandle>(
+    function VoiceControls(_, ref) {
+        return Capacitor.isNativePlatform()
+            ? <NativeVoiceControls ref={ref} />
+            : <BrowserVoiceControls ref={ref} />
     },
 )
 

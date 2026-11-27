@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import NativeCameraCapture from './NativeCameraCapture'
 
 type Props = {
     onCapture: (file: File) => void
 }
 
-export default function CameraCapture({ onCapture }: Props) {
+function BrowserCameraCapture({ onCapture }: Props) {
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const mountedRef = useRef(false)
@@ -247,4 +249,10 @@ export default function CameraCapture({ onCapture }: Props) {
             )}
         </div>
     )
+}
+
+export default function CameraCapture({ onCapture }: Props) {
+    return Capacitor.isNativePlatform()
+        ? <NativeCameraCapture onCapture={onCapture} />
+        : <BrowserCameraCapture onCapture={onCapture} />
 }
