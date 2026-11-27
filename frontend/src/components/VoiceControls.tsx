@@ -121,11 +121,10 @@ const VoiceControls = forwardRef<VoiceControlsHandle>(
         function activate(nextPreferences = preferences) {
             if (
                 !supported ||
-                preferences.muted ||
+                nextPreferences.muted ||
                 document.hidden ||
                 activatedRef.current ||
-                utteranceRef.current ||
-                nextPreferences.muted
+                utteranceRef.current
             ) {
                 return
             }
