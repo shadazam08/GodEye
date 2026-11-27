@@ -1,0 +1,32 @@
+{
+  "colors": {
+    "bg": "#090F18",
+    "surface": "#111E2C",
+    "raised": "#172939",
+    "line": "#334958",
+    "text": "#EDF5F8",
+    "muted": "#AFC2CE",
+    "blue": "#94DEEE",
+    "gold": "#E8BD80",
+    "red": "#EF4444",
+    "green": "#22C55E"
+  },
+  "font": "Arial",
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32
+  ],
+  "radius": {
+    "control": 11,
+    "card": 18
+  },
+  "touchTargetMin": 44,
+  "mobileFrame": {
+    "width": 390,
+    "height": 844
+  }
+}
