@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FirebaseError } from "firebase/app";
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
 
-import { auth, googleProvider } from "../lib/firebase";
+import { auth } from "../lib/firebase";
+import { signInToGodEye, signOutOfGodEye } from "../lib/platformAuth";
 
 function authErrorMessage(error: unknown): string {
   if (!(error instanceof FirebaseError)) {
@@ -82,11 +83,11 @@ export function useAuth() {
   );
 
   function signInWithGoogle(): Promise<boolean> {
-    return runAuthAction(() => signInWithPopup(auth, googleProvider));
+    return runAuthAction(signInToGodEye);
   }
 
   function signOut(): Promise<boolean> {
-    return runAuthAction(() => firebaseSignOut(auth));
+    return runAuthAction(signOutOfGodEye);
   }
 
   return {

@@ -1,0 +1,238 @@
+name: GodEye - Build Android APK
+
+on:
+  push:
+    branches:
+      - android-app
+    paths:
+      - frontend/**
+      - .github/workflows/android-apk.yml
+      - .github/signing/godeye-upload.p12.gpg
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godeye-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Check frontend
+        run: |
+          npm run lint
+          node --test tests/*.test.mjs
+
+      - name: Prepare Firebase Android configuration
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ.get("GOOGLE_SERVICES_JSON", "")
+          if not raw:
+              raise SystemExit("Missing GOOGLE_SERVICES_JSON secret.")
+
+          config = json.loads(raw)
+          package = "com.midnighttigers.godeye"
+
+          clients = [
+              client
+              for client in config.get("client", [])
+              if client.get("client_info", {})
+                  .get("android_client_info", {})
+                  .get("package_name") == package
+          ]
+
+          if not clients:
+              raise SystemExit("Firebase Android package does not match.")
+
+          if not any(
+              item.get("client_type") == 3
+              for client in clients
+              for item in client.get("oauth_client", [])
+          ):
+              raise SystemExit("Firebase Web OAuth client is missing.")
+
+          Path("android/app/google-services.json").write_text(
+              json.dumps(config),
+              encoding="utf-8",
+          )
+          print("Firebase Android configuration prepared.")
+          PY
+
+      - name: Build React application
+        env:
+          VITE_API_BASE_URL: https://godeye-api.vercel.app
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: |
+          for setting in \
+            VITE_FIREBASE_API_KEY \
+            VITE_FIREBASE_AUTH_DOMAIN \
+            VITE_FIREBASE_PROJECT_ID \
+            VITE_FIREBASE_APP_ID
+          do
+            if [ -z "${!setting}" ]; then
+              echo "Missing GitHub secret: $setting"
+              exit 1
+            fi
+          done
+
+          npm run build
+
+      - name: Sync Android project
+        run: npx cap sync android
+
+      - name: Install required Android SDK packages
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Compile Android release
+        run: bash android/gradlew -p android assembleRelease --no-daemon
+
+      - name: Decrypt key and sign APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "Missing ANDROID_KEYSTORE_PASSWORD secret."
+            exit 1
+          fi
+
+          umask 077
+
+          printf '%s' "$KEYSTORE_PASSWORD" |
+            gpg --batch --yes \
+              --pinentry-mode loopback \
+              --passphrase-fd 0 \
+              --output "$RUNNER_TEMP/godeye-upload.p12" \
+              --decrypt ../.github/signing/godeye-upload.p12.gpg
+
+          mkdir -p apk-output
+
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" \
+            -f 4 \
+            android/app/build/outputs/apk/release/app-release-unsigned.apk \
+            "$RUNNER_TEMP/godeye-aligned.apk"
+
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$RUNNER_TEMP/godeye-upload.p12" \
+            --ks-type PKCS12 \
+            --ks-key-alias godeye \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEYSTORE_PASSWORD \
+            --out apk-output/GodEye.apk \
+            "$RUNNER_TEMP/godeye-aligned.apk"
+
+      - name: Verify signature and Firebase fingerprint
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          signer = str(
+              Path(os.environ["ANDROID_HOME"])
+              / "build-tools/36.0.0/apksigner"
+          )
+
+          output = subprocess.check_output(
+              [
+                  signer,
+                  "verify",
+                  "--verbose",
+                  "--print-certs",
+                  "apk-output/GodEye.apk",
+              ],
+              text=True,
+          )
+
+          match = re.search(
+              r"Signer #1 certificate SHA-1 digest:\s*([0-9a-fA-F]+)",
+              output,
+          )
+          if not match:
+              raise SystemExit("Could not read APK signing fingerprint.")
+
+          actual = match.group(1).lower()
+          config = json.loads(
+              Path("android/app/google-services.json").read_text()
+          )
+
+          expected = {
+              item.get("android_info", {})
+                  .get("certificate_hash", "")
+                  .replace(":", "")
+                  .lower()
+              for client in config.get("client", [])
+              for item in client.get("oauth_client", [])
+              if item.get("client_type") == 1
+              and item.get("android_info", {}).get("package_name")
+                  == "com.midnighttigers.godeye"
+          }
+
+          if actual not in expected:
+              raise SystemExit(
+                  "APK certificate does not match Firebase. "
+                  "Update Firebase fingerprints and GOOGLE_SERVICES_JSON."
+              )
+
+          print("APK signature verified; Firebase SHA-1 matches.")
+          PY
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GodEye-Android-APK
+          path: frontend/apk-output/GodEye.apk
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Remove temporary signing files
+        if: always()
+        run: |
+          rm -f \
+            "$RUNNER_TEMP/godeye-upload.p12" \
+            "$RUNNER_TEMP/godeye-aligned.apk" \
+            android/app/google-services.json

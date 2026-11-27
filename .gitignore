@@ -24,3 +24,14 @@ dist/
 *.rar
 *.lzma
 *.zst
+
+
+# Local Android configuration and signing backups
+/google-services.json
+/godeye-signing-backup/
+/frontend/android/app/google-services.json
+
+# Unencrypted signing keys
+*.jks
+*.keystore
+*.p12
