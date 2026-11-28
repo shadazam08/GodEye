@@ -59,7 +59,7 @@ Voice-alert timing depends on location quality, movement metadata and route asse
 | Android application | [Download GodEye.apk](https://github.com/shadazam08/GodEye/releases/download/android-v1.0.0/GodEye.apk) |
 | Source code | [GitHub — shadazam08/GodEye](https://github.com/shadazam08/GodEye) |
 | Backend health | [API health check](https://godeye-api.vercel.app/api/health) |
-| Instagram launch film | [Watch the GodEye Reel](https://www.instagram.com/reel/DgRwQL5i_PP/) |
+| Instagram launch film | [Watch the GodEye Reel](https://www.instagram.com/reel/DgRx8Auxt6Z/?jplx=Y25rb2xqNHA1NHl3) |
 | Project presentation | [Download the PowerPoint](https://github.com/user-attachments/files/35541869/GodEye-Project.Submission.pptx) |
 | Project video folder | [Open the Google Drive folder](https://drive.google.com/drive/folders/1YRhirz0ghaNwUf4vdI8Gliufn3TeUGBY?usp=sharing) |
 
