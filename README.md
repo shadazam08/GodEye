@@ -2,33 +2,36 @@
 
 **Know the road ahead.**
 
-A community-powered road hazard reporting and route-awareness web application with experimental browser voice alerts.
+A community-powered road hazard reporting and route-awareness platform, available on the web and as an Android application.
 
 **Team:** Midnight Tigers  
 **Team Lead:** Shad Azam  
 **Initial focus:** Darbhanga, Bihar, India  
-**Platform:** Responsive web application, designed primarily for phone use
+**Platforms:** Mobile-first web application and Android APK  
+**Submission date:** 28 November 2026  
+**Submission deadline:** Before 11:30 PM IST (UTC+05:30)
 
-> **Project status:** A working web application with photo reporting, admin review, repair tracking, route planning and experimental voice alerts. The frontend passes lint, production build and 66 automated tests. Real-device validation of the latest voice and GPS behavior remains in progress.
+> **Project status:** The web application is live and an Android APK is available. GodEye includes photo-based reporting, account-based admin review, repair tracking, route planning and Hindi/English voice alerts. Alert availability depends on location quality, device permissions and an active foreground session.
 
 ## Contents
 
 1. [Project overview](#project-overview)
 2. [Team](#team)
-3. [Links](#links)
-4. [Implemented features](#implemented-features)
-5. [Roles and user journeys](#roles-and-user-journeys)
-6. [Architecture and technology](#architecture-and-technology)
-7. [Data and API](#data-and-api)
-8. [Voice-alert decision rules](#voice-alert-decision-rules)
-9. [Local setup](#local-setup)
-10. [Configuration](#configuration)
-11. [Testing](#testing)
-12. [Deployment](#deployment)
-13. [Privacy and security](#privacy-and-security)
-14. [Limitations and future work](#limitations-and-future-work)
-15. [Demo walkthrough](#demo-walkthrough)
-16. [Visual identity and license](#visual-identity-and-license)
+3. [Project and submission links](#project-and-submission-links)
+4. [Android application](#android-application)
+5. [Implemented features](#implemented-features)
+6. [Roles and user journeys](#roles-and-user-journeys)
+7. [Architecture and technology](#architecture-and-technology)
+8. [Data and API](#data-and-api)
+9. [Voice-alert decision rules](#voice-alert-decision-rules)
+10. [Local setup](#local-setup)
+11. [Configuration](#configuration)
+12. [Android cloud build](#android-cloud-build)
+13. [Testing](#testing)
+14. [Deployment](#deployment)
+15. [Privacy and security](#privacy-and-security)
+16. [Limitations and future work](#limitations-and-future-work)
+17. [Visual identity and license](#visual-identity-and-license)
 
 ## Project overview
 
@@ -36,7 +39,7 @@ Road damage can be difficult to notice during rain, fog, darkness or unfamiliar 
 
 The application helps road users anticipate previously reported damage and follow its review and repair progress. It uses mapped community reports, location data and route geometry to assess whether a report may be relevant to a journey.
 
-Voice alerts are experimental. Their timing depends on location quality, movement metadata and route assessment. GodEye does not guarantee a warning exactly 50 metres before a hazard or replace a driver's observation of road conditions.
+Voice-alert timing depends on location quality, movement metadata and route assessment. The original idea of a 50-metre warning is a project goal, not a guaranteed detection distance. GodEye works from previously reported road damage; it does not detect unseen potholes through a driver's camera.
 
 ## Team
 
@@ -48,30 +51,55 @@ Voice alerts are experimental. Their timing depends on location quality, movemen
 | Rishav Raj Sing | Team Member |
 | Bulbul Gajbhiye | Team Member |
 
+## Project and submission links
 
-## Links
+| Resource | Link |
+| --- | --- |
+| Live web application | [Open GodEye](https://god-eye-eight.vercel.app/) |
+| Android application | [Download GodEye.apk](https://github.com/shadazam08/GodEye/releases/download/android-v1.0.0/GodEye.apk) |
+| Source code | [GitHub — shadazam08/GodEye](https://github.com/shadazam08/GodEye) |
+| Backend health | [API health check](https://godeye-api.vercel.app/api/health) |
+| Instagram launch film | [Watch the GodEye Reel](https://www.instagram.com/reel/DgRwQL5i_PP/) |
+| Project presentation | [Download the PowerPoint](https://github.com/user-attachments/files/35541869/GodEye-Project.Submission.pptx) |
+| Project video folder | [Open the Google Drive folder](https://drive.google.com/drive/folders/1YRhirz0ghaNwUf4vdI8Gliufn3TeUGBY?usp=sharing) |
 
-- [Web application](https://god-eye-eight.vercel.app/)
-- [Backend healt](https://godeye-api.vercel.app/api/health)
-- [Repository](https://github.com/shadazam08/GodEye)
+**Buildathon hashtags:** `#TutedudeBuildathon` `#BuildForMyCity`
 
-## Download the Android App
+## Android application
 
-[Download GodEye for Android (.apk)](https://github.com/shadazam08/GodEye/releases/download/android-v1.0.0/GodEye.apk)
+The Android application packages the React interface with Capacitor and connects to the deployed backend. It uses native Google sign-in, native camera capture and Android text-to-speech alongside the shared reporting and route logic.
 
-GodEye is available as an Android preview build for academic evaluation.
+| Property | Value |
+| --- | --- |
+| App name | GodEye |
+| Android application ID | `com.midnighttigers.godeye` |
+| Minimum Android version | Android 7.0 / API 24 |
+| Framework | Capacitor 8 with React and TypeScript |
+| Distribution | Signed APK through GitHub Releases |
+| Android source branch | `android-app` |
+| Speech languages | Hindi and English |
 
-An internet connection is required for maps, Google sign-in,
-route planning, and report submission.
+### Install and use
+
+1. Download the APK using the link above on an Android phone.
+2. Open the downloaded file. If Android asks, permit installation from the browser or file manager used for this download.
+3. Install and open GodEye.
+4. Allow location for the moving map. Allow camera access when submitting a report.
+5. Search for a destination, select the vehicle and request a route.
+6. Keep the application visible while using route and voice features.
+
+An internet connection is required for maps, Google sign-in, route planning, report loading and report submission. Speech also requires a working text-to-speech engine and the selected language to be available on the phone. Check media volume if alerts are silent.
+
+The APK can be installed directly; the application is not currently distributed through Google Play or the Apple App Store.
 
 ## Implemented features
 
 | Area | Current behavior |
 | --- | --- |
-| Account access | Google sign-in through Firebase Authentication. Backend verifies the Firebase token. |
-| Public map | Leaflet map with reported severity markers and permission-based location updates. |
+| Account access | Google sign-in through Firebase Authentication; native Google sign-in on Android. The backend verifies the Firebase token. |
+| Public map | Leaflet map with severity markers, a current-location indicator and permission-based location updates while the application is active. |
 | Report submission | Signed-in user submits report details, a map point and a compulsory JPEG/PNG photo in one multipart request. |
-| Camera | A browser camera preview captures a still image. Camera access requires permission and an available device. |
+| Camera | Browser camera capture on the web and Capacitor camera capture on Android. Camera access requires permission. |
 | Image handling | Server validates actual image contents, applies EXIF orientation, removes metadata and prepares a resized JPEG. |
 | Evidence storage | Cloudinary authenticated storage with authorized temporary photo previews. |
 | My Reports | Automatically loads the current user's reports with images, location and review/repair state. |
@@ -81,8 +109,8 @@ route planning, and report submission.
 | Destination and route | Geoapify destination search and route planning for car or motorcycle. |
 | Route proximity | Highlights verified, unrepaired reports within approximately 40 m of the planned route line. |
 | Route order | Estimates earlier/later route positions and blocks ambiguous or invalid projections. |
-| Voice settings | Hindi default, mute/unmute, Hindi/English selection and preference storage in the same browser. |
-| Experimental alerts | Candidate selection combines route position, location quality, speed and heading. Repeat/cooldown rules apply. |
+| Voice settings | Hindi by default; mute/unmute, Hindi/English selection and locally saved preferences. Android uses native text-to-speech; the web uses browser speech. |
+| Route-aware alerts | Candidate selection combines route position, location quality, speed and heading. Repeat suppression and cooldown rules apply. |
 | Data refresh | Visible map refreshes report data every 60 seconds and on return/reconnection. |
 
 ## Roles and user journeys
@@ -94,7 +122,7 @@ route planning, and report submission.
 3. Search for a destination and confirm the full address.
 4. Choose Car or Bike and request the route.
 5. Review route distance, estimated time and nearby road reports.
-6. Keep the page active for experimental location and voice behavior.
+6. Keep the application visible for location updates and voice alerts. Use mute or language controls when needed.
 
 The mobile interface keeps destination and route controls together above the map. Buttons distinguish **Edit destination**, **Change vehicle** and **My location**.
 
@@ -137,11 +165,13 @@ Review status and repair state are separate. A verified report remains `verified
 
 ```mermaid
 flowchart TD
-    A[React web client] --> B[FastAPI on Vercel]
-    A --> C[Firebase Google sign-in]
-    B --> D[Neon PostgreSQL]
-    B --> E[Cloudinary evidence storage]
-    B --> F[Geoapify search and routing]
+    A[React web application] --> C[FastAPI on Vercel]
+    B[Capacitor Android application] --> C
+    A --> D[Firebase Authentication]
+    B --> D
+    C --> E[Neon PostgreSQL]
+    C --> F[Cloudinary evidence storage]
+    C --> G[Geoapify search and routing]
 ```
 
 | Layer | Technology | Purpose |
@@ -149,7 +179,9 @@ flowchart TD
 | Client | React, TypeScript, Vite | Responsive application and typed UI |
 | Styling | CSS, project brand styles | Navy, ice-blue and muted-gold identity |
 | Mapping | Leaflet, OpenStreetMap tiles/data | Basemap, route geometry and hazard markers |
-| Browser APIs | Geolocation, MediaDevices, SpeechSynthesis | Position, camera stills and speech |
+| Web APIs | Geolocation, MediaDevices, SpeechSynthesis | Location updates, browser camera capture and browser speech |
+| Android runtime | Capacitor 8 | Packages the shared React application as an APK |
+| Native Android features | Firebase Authentication, Camera and Text-to-Speech plugins | Native sign-in, photo capture and Hindi/English speech |
 | Backend | Python, FastAPI | Validation, authorization and workflows |
 | Persistence | Neon PostgreSQL, SQLAlchemy, psycopg | Accounts, reports, evidence metadata and history |
 | Schema changes | Alembic | Versioned database migrations |
@@ -158,12 +190,15 @@ flowchart TD
 | Navigation | Geoapify through backend HTTP requests | Destination search, routing and matching services |
 | Hosting | Vercel frontend and backend projects | HTTPS deployment from `main` |
 
-Route-distance and ordering calculations run in TypeScript. The backend stores records in PostgreSQL and handles provider requests. Private provider credentials stay on the backend.
+Route-distance and ordering calculations run in TypeScript. The backend stores records in PostgreSQL and handles provider requests. Private provider credentials stay on the backend. The current location hook uses the browser/WebView Geolocation API; installing the Capacitor Geolocation package alone does not provide background tracking.
 
 ### Project structure
 
 ```text
 GodEye/
+  .github/
+    workflows/android-apk.yml # Android cloud build
+    signing/                 # Encrypted signing-key backup
   backend/
     main.py
     models.py
@@ -177,11 +212,14 @@ GodEye/
     services/               # Account, map and image services
     tests/                  # Backend validation and authorization tests
   frontend/
+    android/                # Native Android project
+    capacitor.config.ts
     public/brand/
     src/
       api/                  # Account, reports, photos, admin, navigation
       components/           # Map, reporting, admin, camera and voice UI
       hooks/                # Authentication and live location
+      lib/                  # Firebase, platform login and native adapters
       types/
       utils/                # Geographic, route and voice eligibility logic
       App.tsx
@@ -194,7 +232,7 @@ GodEye/
     vercel.json
 ```
 
-Generated archives, `.venv`, `node_modules`, build output and credentials should remain outside version control.
+Generated archives, `.venv`, `node_modules`, build output and plaintext credentials stay outside version control. Android Gradle wrapper files and source resources are part of the native project. The encrypted signing backup is retained separately from its decryption secret.
 
 ## Data and API
 
@@ -251,7 +289,7 @@ The feature announces reported road damage **near the planned route**. It does n
 
 A candidate requires an active, visible session, available report data, a usable route and fresh location. The helper then checks verified/unrepaired status, route ordering, distance and approach direction.
 
-### Development thresholds
+### Current thresholds
 
 | Check | Setting / behavior |
 | --- | --- |
@@ -261,12 +299,12 @@ A candidate requires an active, visible session, available report data, a usable
 | Movement speed | At least 1 m/s with valid speed metadata |
 | Heading | Valid heading and at most 45 degrees difference to the hazard bearing |
 | Candidate distance | Within 200 m by approach and along-route checks |
-| Repeat suppression | A report whose speech started is suppressed in that route session |
-| Global cooldown | 25 seconds between started report announcements |
+| Repeat suppression | A confirmed announcement is suppressed in that route session; browser confirmation occurs at speech start, Android confirmation after completed playback |
+| Global cooldown | 25 seconds after the platform confirms an announcement |
 | Speech preferences | Hindi default; mute and language saved locally when storage is available |
-| Speech activation | A user action such as Show route attempts activation; Enable sound appears if needed |
+| Speech activation | Browser playback may require a user interaction; Android uses its text-to-speech engine with initialization and language checks |
 
-The nearest eligible report supplies the candidate. Speech-start confirmation updates the announced set. Route changes reset the route-session set. Hidden-page, stale-location, invalid direction and missing-speed conditions block candidates. A 1-second timer and visibility events reassess conditions. These development values are not validated road-safety recommendations.
+The nearest eligible report supplies the candidate. Playback confirmation updates the announced set; on Android, cancelled or incomplete speech does not consume that confirmation. Route changes reset the route-session set. Hidden-page, stale-location, invalid direction and missing-speed conditions block candidates. A 1-second timer and visibility events reassess conditions. These settings are implementation thresholds, not field-validated warning distances.
 
 ## Local setup
 
@@ -286,6 +324,8 @@ cd frontend
 npm ci
 cd ../backend
 ```
+
+These commands install the web application from the repository's default branch. For Android source and cloud builds, use the `android-app` branch described below.
 
 Windows CMD:
 
@@ -350,7 +390,56 @@ VITE_FIREBASE_APP_ID=YOUR_FIREBASE_APP_ID
 
 For production, set `VITE_API_BASE_URL=https://godeye-api.vercel.app` and keep Firebase web settings consistent with the deployed project. Configure the live frontend domain as an authorized Firebase domain and a permitted backend CORS origin. Vite embeds `VITE_` values at build time, so rebuild/redeploy after changing them.
 
-Do not place database credentials, Cloudinary API secrets, Geoapify server keys, service-account files or Firebase ID tokens in frontend source or Git. Admin permissions come from the database account role.
+Do not place database credentials, Cloudinary API secrets, Geoapify server keys, service-account files or Firebase ID tokens in frontend source or Git. Firebase web configuration is client configuration and does not grant admin access; database roles and backend token checks enforce permissions. Admin permissions come from the database account role.
+
+## Android cloud build
+
+The checked-in GitHub Actions workflow builds the APK in the cloud. Android Studio, a local Android SDK and Docker are not required for this workflow.
+
+### Source and web assets
+
+From the repository root, use the Android branch and install its locked dependencies:
+
+```bash
+git switch android-app
+cd frontend
+npm ci
+npm run lint
+npm run build
+npx cap sync android
+```
+
+`npm run build` creates the web assets in `dist`; `npx cap sync android` copies them into the Android project and updates plugins. These commands alone do not produce an APK. The GitHub Actions workflow performs the native build and signing.
+
+### Firebase and build configuration
+
+For an independent build, register an Android application in your Firebase project using `com.midnighttigers.godeye`, enable Google sign-in, and provide the matching Android configuration through repository secrets. The APK signing-certificate fingerprints must match those registered in Firebase; include the matching web OAuth client configuration.
+
+The workflow uses these GitHub Actions secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `GOOGLE_SERVICES_JSON` | Firebase Android configuration supplied during the build |
+| `VITE_FIREBASE_API_KEY` | Firebase web configuration used by the React application |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase authorized authentication domain |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase project shared by the web and Android configuration |
+| `VITE_FIREBASE_APP_ID` | Firebase web application ID |
+| `ANDROID_KEYSTORE_PASSWORD` | Unlocks the project's encrypted signing backup and keystore |
+
+The workflow supplies `VITE_API_BASE_URL=https://godeye-api.vercel.app`. If building against another backend, update that build setting and configure its permitted web and Android origins.
+
+### Build and distribute
+
+1. Push the intended changes to `android-app`, or run **GodEye - Build Android APK** from GitHub Actions using that branch.
+2. The workflow installs dependencies with Node.js 24 and uses Java 21 for the Android build.
+3. It checks the frontend, builds the React assets, synchronizes Capacitor and builds the Android release.
+4. It decrypts the signing material on the runner, signs the APK and verifies the signing certificate against the Firebase configuration.
+5. Download the generated APK artifact after a successful run.
+6. Attach the chosen APK to a GitHub Release for a stable public download link. The README download link points to a release, not a temporary workflow artifact.
+
+Keep the original signing key and its password backed up securely; updates must use the matching signing identity. Never commit an unencrypted keystore, signing password, service-account private key or local signing-backup directory. An independent fork needs its own signing setup and corresponding Firebase fingerprints.
+
+Changing the live Vercel frontend does not replace the web files already bundled inside an installed APK. Rebuild, synchronize and distribute an updated APK when bundled frontend or native code changes.
 
 ## Testing
 
@@ -365,7 +454,7 @@ node --test
 
 ### Frontend validation results
 
-As of 27 November 2026:
+The lint and production-build results below were reported on **27 November 2026**. The **66 geographic, route and voice-decision tests** were rerun successfully on **28 November 2026**. These results cover the tested baseline and do not certify every device or APK build.
 
 | Check | Result |
 | --- | --- |
@@ -385,11 +474,13 @@ Backend, from `backend` in Windows CMD:
 
 Backend tests cover admin access boundaries, map-provider handling, image validation, storage responses, cleanup and photo endpoints. Run the complete backend suite after changes to services or API workflows.
 
-The production build currently emits a JavaScript chunk-size warning above 500 kB. Build output remains valid; route-based lazy loading is a planned optimization.
+Build and test results apply to the exact source revision and dependency lockfile used. The Android application also needs a successful native build and device checks; a passing web build alone does not validate the installed APK.
 
 ### Mobile integration testing
 
-- Hindi and English speech on actual supported browsers.
+- Hindi and English speech in supported browsers and the Android application.
+- Android text-to-speech initialization, installed language data and media volume.
+- Native Google sign-in and camera capture with the release signing identity.
 - Muting a current utterance and unmuting without stale preferences.
 - Browser sound restrictions and the Enable sound fallback.
 - Saved preference persistence after reload; storage-disabled fallback.
@@ -398,7 +489,7 @@ The production build currently emits a JavaScript chunk-size warning above 500 k
 - Background/foreground transitions, screen locking and network loss.
 - Multi-account permission checks against the live backend.
 
-Unit tests cover geographic and alert-decision logic. Device testing separately checks speech playback, GPS quality and browser interruptions. Conduct movement checks as a passenger or in a controlled setting.
+Unit tests cover geographic and alert-decision logic. Device checks separately assess speech playback, GPS quality and operating-system interruptions. Use isolated test data rather than publishing synthetic reports as active public hazards. Conduct movement checks as a passenger or in a controlled setting.
 
 ## Deployment
 
@@ -411,14 +502,14 @@ Unit tests cover geographic and alert-decision logic. Device testing separately 
 7. Apply database migrations deliberately against the intended Neon database.
 8. Check health, login, camera/report, private images, admin access and repair exclusion live.
 
-The frontend SPA rewrite sends application routes such as `/my-reports` to `index.html`. Keep Firebase authorized domains and backend CORS origins aligned with the live domain. Validate database writes and provider-backed operations in addition to the health endpoint.
+The frontend SPA rewrite sends application routes such as `/my-reports` to `index.html`. Keep Firebase authorized domains and backend CORS origins aligned with the live domain. For the configured Android WebView, permit the intended `https://localhost` origin on the backend as well. Validate database writes and provider-backed operations in addition to the health endpoint. Web deployment from `main` and Android builds from `android-app` are separate release steps.
 
 ## Privacy and security
 
 - Backend validates Firebase tokens and checks database admin roles.
 - Owner queries use the authenticated UID rather than a client-supplied owner ID.
 - Cloudinary images use authenticated delivery and authorized preview endpoints.
-- Local preferences store language and mute settings. Do not store tokens or signed preview URLs there.
+- Application preference storage contains language and mute settings. Firebase Authentication manages its own sign-in persistence; the application does not add signed photo-preview URLs to preference storage.
 - Upload processing strips metadata. Automatic face/number-plate redaction is not implemented.
 - Provider requests disclose necessary locations/destinations to the map service. Review provider terms before a broader launch.
 - A broader production rollout requires rate limiting, monitoring, backup/recovery checks and independent security review.
@@ -428,32 +519,19 @@ The frontend SPA rewrite sends application routes such as `/my-reports` to `inde
 
 ### Current limits
 
-- GPS errors may exceed the proposed 50 m concept range.
+- A precise 50 m warning is not guaranteed. GPS errors and delayed updates can exceed that distance.
 - Nearby parallel roads, bridges, return paths and opposing carriageways remain difficult to distinguish reliably.
 - Missing speed/heading correctly prevents an approach alert rather than fabricating direction.
 - The map currently loads a bounded set of up to 200 reports. It is not a complete city-wide coverage guarantee.
 - Polling introduces a delay before changes reach an already-open map.
-- A hidden/locked/suspended browser cannot guarantee continuous warning playback.
+- A hidden, locked or suspended browser/WebView cannot guarantee continuous location updates or warning playback. The current APK does not implement a background driving foreground service.
 - Geoapify, map tiles, identity and image services have availability and quota limits.
 - Automatic route recalculation, arrival handling, complete offline operation and turn-by-turn guidance are outside the current implemented scope.
 - Automated AI pothole detection and depth estimation are not implemented. No accident-reduction outcome has been measured.
 
 ### Future work
 
-Prioritize real-device validation, stronger same-road matching and alert-quality measurement. Then evaluate improved hazard queries, duplicate consolidation, accessibility/localization, operational safeguards and licensed AI image screening. Keep AI predictions separate from admin decisions and report confidence separately from severity.
-
-## Demo walkthrough
-
-1. Show the live map and select a Darbhanga destination.
-2. Explain route highlighting as proximity, not confirmed same-road detection.
-3. Sign in, capture a test photo and submit a clearly labelled test report.
-4. Show its persisted image and pending status in My Reports.
-5. Use the authorized admin account to inspect evidence and record a decision.
-6. Demonstrate repair status using test records and show retained history.
-7. Show a regular account denied admin access.
-8. Show voice preferences and the automated test results, and explain the current validation limits.
-
-Do not verify synthetic reports as real public hazards. Use isolated test data and restore test records to an appropriate non-active state.
+Priorities include wider Android and browser field testing, stronger same-road matching, alert-quality measurement, improved geographic report queries, duplicate consolidation, accessibility and operational monitoring. Future research may evaluate AI image screening and depth estimation; these are not part of the current implemented detection workflow.
 
 ## Visual identity and license
 
